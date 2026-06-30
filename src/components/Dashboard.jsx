@@ -407,6 +407,15 @@ function processData(rows, meta = {}, dateRange = null, outletFilter = null) {
     .filter(p => p.revenue > 0)
   const topProducts = Object.entries(productRev).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, revenue]) => ({ name, revenue: Math.round(revenue), orders: productOrders[name] || 0 }))
   const allProducts = Object.entries(productUnitsSold).sort((a, b) => b[1] - a[1]).map(([name, units]) => ({ name, units, revenue: Math.round(productRev[name] || 0) }))
+
+  // DJI Care Refresh attach rate: how many care plans sold per device (drone/handheld) sold
+  let careUnits = 0, deviceUnits = 0
+  allProducts.forEach(p => {
+    if (/\bCARE\s+REFRESH\b/i.test(p.name)) { careUnits += p.units; return }
+    const pType = classifyProductType(p.name, '')
+    if (pType === 'Drone' || pType === 'Handheld') deviceUnits += p.units
+  })
+  const careAttachRate = deviceUnits > 0 ? careUnits / deviceUnits : 0
   const salesmen = Object.entries(salesmanRev).sort((a, b) => b[1] - a[1]).map(([name, revenue]) => {
     const rc = salesmanReturnCount[name] || 0
     const tx = salesmanTxCount[name] || 0
@@ -471,6 +480,7 @@ function processData(rows, meta = {}, dateRange = null, outletFilter = null) {
     weekendRatio, busiestDay, meta, grossRevenue, returnRevenue, returnCount, returnRate,
     momCurrent, momPrev, momChange, momCurrentLabel, momPrevLabel, monthlyBreakdown,
     topReturnedProducts, totalRSP, availableOutlets, productTypeItems, availableMonths: months,
+    careUnits, deviceUnits, careAttachRate,
   }
 }
 
@@ -3438,9 +3448,17 @@ export default function Dashboard() {
                           </div>
                         ))}
                       </div>
-                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.BORDER}`, display: 'flex', gap: 16 }}>
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.BORDER}`, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 11, color: T.MUTED }}>Showing <strong style={{ color: T.TEXT }}>{filtered.length}</strong> of <strong style={{ color: T.TEXT }}>{data.allProducts.length}</strong></span>
                         <span style={{ fontSize: 11, color: T.MUTED }}>Total: <strong style={{ color: T.TEXT }}>{fmtNum(data.allProducts.reduce((s, p) => s + p.units, 0))} units</strong></span>
+                        {data.deviceUnits > 0 && (
+                          <span style={{ fontSize: 11, color: T.MUTED }}>
+                            DJI Care attach rate: <strong style={{ color: data.careAttachRate >= 0.3 ? GREEN : data.careAttachRate >= 0.1 ? ORANGE : RED }}>
+                              {(data.careAttachRate * 100).toFixed(0)}%
+                            </strong>
+                            <span style={{ opacity: 0.65 }}> ({data.careUnits} care / {data.deviceUnits} devices — avg {data.careAttachRate.toFixed(2)} per unit sold)</span>
+                          </span>
+                        )}
                       </div>
                     </>
                   )
