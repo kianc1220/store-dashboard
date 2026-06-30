@@ -2,8 +2,32 @@ import { useState, useCallback, useRef, useMemo, useEffect, useSyncExternalStore
 import Papa from 'papaparse'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
+  Tooltip, ResponsiveContainer, Cell, PieChart, Pie, ReferenceDot,
 } from 'recharts'
+
+const OUTLET_NAMES = {
+  '1UEC': '1UEC',
+  'AIOI': 'IOI Azure',
+  'GP':   'Gurney Plaza',
+  'HQ':   'HQ',
+  'IOI':  'IOI City Mall',
+  'KKI':  'Imago KK',
+  'KLCC': 'KLCC',
+  'LYP':  'Low Yat Plaza',
+  'OU':   '1 Utama',
+  'PBJ':  'Pavilion Bukit Jalil',
+  'PDM':  'Paradigm Mall',
+  'PV':   'Pavilion KL',
+  'QBM':  'Queensbay Mall',
+  'SVC':  'Vivacity',
+  'SW':   'Sunway Pyramid',
+  'TG':   'The Gardens',
+}
+const outletLabel = code => {
+  if (!code) return ''
+  if (code.includes('/') || code.length > 12) return 'All Outlets'
+  return OUTLET_NAMES[code] || code
+}
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -68,17 +92,34 @@ function seedRandom(d, h) {
   return x - Math.floor(x)
 }
 
-const PTYPE_COLORS = { Drone: '#2563eb', Handheld: '#059669', Home: '#d97706', Power: '#7c3aed' }
-const PTYPES = ['Drone', 'Handheld', 'Home', 'Power']
+const PTYPE_COLORS = { Drone: '#2563eb', Handheld: '#059669', 'Home/Power': '#d97706', Others: '#94a3b8' }
+const PTYPES = ['Drone', 'Handheld', 'Home/Power', 'Others']
 
-function classifyProductType(product) {
+function classifyProductType(product, category) {
+  const cat = (category || '').toUpperCase()
   const p = (product || '').toUpperCase()
-  if (/\bPOWER\b/.test(p)) return 'Power'
-  if (/\bSMART HOME\b|\bDOORBELL\b|\bHOME\s+SECURITY\b|\bO3\s+MODULE\b/.test(p)) return 'Home'
+
+  // Home/Power: power stations + ROMO robot vacuums
+  if (/\bPOWER\b|\bROMO\b|\bSMART HOME\b|\bDOORBELL\b/.test(p)) return 'Home/Power'
+
+  // DJI Care Refresh warranties: classify by the covered product, not as generic accessory
+  if (/\bCARE\s+REFRESH\b/.test(p)) {
+    if (/\bOSMO\b|\bPOCKET\b|\bMIC\b|\bMOBILE\b|\bLAVALIER\b|\bRONIN\b/.test(p)) return 'Handheld'
+    if (/\bMAVIC\b|\bMINI\b|\bAVATA\b|\bNEO\b|\bFLIP\b|\bLITO\b|\bFPV\b|\bAIR\b/.test(p)) return 'Drone'
+    return 'Others'
+  }
+
+  // All other accessories and third-party brands → Others
+  if (cat.includes('ACCESSORIES') || cat === 'MEMORYCARD' || cat === 'MEMORY CARD' || cat === 'BRAND') return 'Others'
+
+  // Handheld FIRST — catches "Mic Mini 2" via MIC and "RS 4 Mini" via RS before MINI hits Drone
+  if (/\bOSMO\b|\bRS\s*[C2-9]\b|\bRONIN\b|\bPOCKET\b|\bMIC\b|\bMOBILE\b|\bLAVALIER\b/.test(p)) return 'Handheld'
+
+  // Drone: flying platforms
   if (/\bMAVIC\b|\bMINI\b|\bPHANTOM\b|\bAVATA\b|\bFPV\b|\bAGRAS\b|\bNEO\b|\bFLIP\b|\bLITO\b/.test(p) ||
       /\bDJI\s+AIR\b|\bAIR\s+\d/.test(p)) return 'Drone'
-  if (/\bOSMO\b|\bRS\s*[C2345]\b|\bRONIN\b|\bPOCKET\b|\bMIC\b|\bMOBILE\b/.test(p)) return 'Handheld'
-  return 'Drone'
+
+  return 'Others'
 }
 
 function generateDemoData(seed = 0) {
@@ -126,17 +167,69 @@ const DATE_RE = /\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}/
 function parsePOSFile(raw) {
   const meta = {}
   let headerIdx = -1
+  let isSellThrough = false
+
   for (let i = 0; i < Math.min(raw.length, 20); i++) {
     const cell = (raw[i][0] || '').trim()
-    if (cell.startsWith('Generated On')) meta.generated = cell.replace('Generated On :', '').trim()
-    if (cell.startsWith('Report Time period')) meta.period = cell.replace('Report Time period :', '').trim()
-    if (cell.startsWith('Outlets')) meta.outlet = cell.replace('Outlets :', '').trim()
+    if (cell.startsWith('Generated On')) meta.generated = cell.replace(/^Generated On\s*:?\s*/, '').trim()
+    if (/^Report Time [Pp]eriod/.test(cell)) meta.period = cell.replace(/^Report Time [Pp]eriod\s*:?\s*/, '').trim()
+    if (/^Outlets?\s*:/.test(cell)) {
+      let o = cell.replace(/^Outlets?\s*:?\s*/, '').trim()
+      // Strip company suffix e.g. " - AZURE TELECOMMUNICATION SDN BHD (1312920-W)"
+      o = o.replace(/\s*-\s*AZURE\s+TELECOMMUNICATION.*$/i, '').trim()
+      meta.outlet = o
+    }
     if (cell.startsWith('Total Transactions')) meta.totalTx = cell.replace('Total Transactions :', '').trim()
     if (cell.startsWith('Total Sales')) meta.kassieTotal = parseFloat(cell.replace(/^Total Sales\s*:\s*\(MYR\)/, '').trim()) || null
     if (cell === 'Date') { headerIdx = i; break }
+    if (cell === 'Product Code') { headerIdx = i; isSellThrough = true; break }
   }
+
   if (headerIdx === -1) return null
   const headers = raw[headerIdx]
+
+  if (isSellThrough) {
+    // Product Sell Through format — one row per product, no Date column.
+    // Extract period start date to use as synthetic transaction date.
+    const periodMatch = meta.period?.match(/(\d{4}-\d{2}-\d{2})/)
+    const syntheticDate = periodMatch ? periodMatch[1] : new Date().toISOString().split('T')[0]
+
+    const dataRows = raw.slice(headerIdx + 1)
+      .filter(r => r[0] && r[0].trim() && r[1] && r[1].trim()) // must have Product Code + Name
+      .map(r => {
+        const obj = {}
+        headers.forEach((h, idx) => { obj[h] = (r[idx] || '').trim() })
+        return obj
+      })
+      .map(r => {
+        const cat = r['Category'] || ''
+        // Normalise to the Category Description values normalizeRow expects
+        const categoryDesc = cat === 'PRODUCT' ? 'DJI PRODUCT'
+          : cat === 'ACCESSORIES' ? 'DJI ACCESSORIES'
+          : cat === 'MEMORYCARD' ? 'MEMORY CARD'
+          : cat
+
+        return {
+          'Date': syntheticDate,
+          'Product Description': r['Product Name'],
+          'Category Description': categoryDesc,
+          'Brand': r['Brand'] || r['Product Brand L2'] || '',
+          'Net Sales(MYR)': r['Sales(MYR)'] || r['Net Sales Without Tax(MYR)'] || '0',
+          'Selling Price(MYR)': r['Retail Price(MYR)'] || '0',
+          'Discount Amount(MYR)': r['Discount Amount'] || '0',
+          'RSP(MYR)': r['Retail Price(MYR)'] || '0',
+          'Qty': r['Total Quantity Sold'] || r['QBM'] || '1',
+          'Salesman': '',
+          'Payment Modes': 'Unknown',
+          'Customer Type': 'Unknown',
+          'Customer Gender': 'Unknown',
+          'Customer Age Group': 'Unknown',
+        }
+      })
+    return { headers, dataRows, meta, isSellThrough: true }
+  }
+
+  // Standard transaction-level CSV
   const dataRows = raw.slice(headerIdx + 1)
     .filter(r => r[0] && DATE_RE.test(r[0]))
     .map(r => {
@@ -144,7 +237,7 @@ function parsePOSFile(raw) {
       headers.forEach((h, i) => { obj[h] = (r[i] || '').trim() })
       return obj
     })
-  return { headers, dataRows, meta }
+  return { headers, dataRows, meta, isSellThrough: false }
 }
 
 function normalizeRow(r) {
@@ -177,6 +270,8 @@ function normalizeRow(r) {
       brand: r['Brand'] || 'Other',
       gender: r['Customer Gender'] || 'Unknown',
       age_group: r['Customer Age Group'] || 'Unknown',
+      outlet: r['Outlet Code'] || r['Outlet Name'] || r['Branch Code'] || r['Branch'] || '',
+      invoice_no: r['Invoice No.'] || r['Invoice No'] || '',
     }
   }
   return {
@@ -186,23 +281,35 @@ function normalizeRow(r) {
     category: r.category || 'Other', product: r.product || 'Unknown',
     payment: r.payment || 'Unknown', salesman: r.salesman || 'Unknown',
     brand: r.brand || 'Other', gender: r.gender || 'Unknown',
-    age_group: r.age_group || 'Unknown',
+    age_group: r.age_group || 'Unknown', invoice_no: r.invoice_no || '',
   }
 }
 
-function processData(rows, meta = {}, dateRange = null) {
+function processData(rows, meta = {}, dateRange = null, outletFilter = null) {
   const allNormalized = rows.map(normalizeRow).filter(r => r.date)
 
-  // Filter by exact date range when set
+  // Collect available outlets
+  const outletSet = new Set()
+  allNormalized.forEach(r => { if (r.outlet) outletSet.add(r.outlet) })
+  const availableOutlets = [...outletSet].sort()
+
+  // Filter by outlet if set
   let normalized = allNormalized
+  if (outletFilter) {
+    normalized = allNormalized.filter(r => r.outlet === outletFilter)
+  }
+
+  // Filter by exact date range when set
   if (dateRange?.start && dateRange?.end) {
-    normalized = allNormalized.filter(r => r.date >= dateRange.start && r.date <= dateRange.end)
+    normalized = normalized.filter(r => r.date >= dateRange.start && r.date <= dateRange.end)
   }
 
   const revenueByDate = {}, ordersByDate = {}, revenueByMonth = {}, ordersByMonth = {}
   const heatmap = Array.from({ length: 7 }, () => Array(24).fill(0))
+  const invoicesByDow = Array(7).fill(0)
+  const seenInvoices = new Set()
   const categoryRev = {}, productRev = {}, productOrders = {}, productUnitsSold = {}
-  const productTypeRev = {}, productTypeOrders = {}
+  const productTypeRev = {}, productTypeOrders = {}, productTypeItemsMap = {}
   const salesmanRev = {}, salesmanOrders = {}, salesmanProducts = {}
   const salesmanTxCount = {}, salesmanReturnCount = {}, salesmanReturnRev = {}
   const productTxCount = {}, productReturnCount = {}, productReturnRev = {}
@@ -229,9 +336,14 @@ function processData(rows, meta = {}, dateRange = null) {
     productRev[product] = (productRev[product] || 0) + revenue
     productOrders[product] = (productOrders[product] || 0) + orders
     if (!isReturn) productUnitsSold[product] = (productUnitsSold[product] || 0) + Math.abs(orders)
-    const pType = classifyProductType(product)
+    const pType = classifyProductType(product, category)
     productTypeRev[pType] = (productTypeRev[pType] || 0) + revenue
     productTypeOrders[pType] = (productTypeOrders[pType] || 0) + Math.abs(orders)
+    if (!productTypeItemsMap[pType]) productTypeItemsMap[pType] = {}
+    productTypeItemsMap[pType][product] = (productTypeItemsMap[pType][product] || 0) + revenue
+    if (!isReturn && r.invoice_no && !seenInvoices.has(r.invoice_no)) {
+      seenInvoices.add(r.invoice_no); invoicesByDow[dow]++
+    }
     salesmanRev[salesman] = (salesmanRev[salesman] || 0) + revenue
     salesmanOrders[salesman] = (salesmanOrders[salesman] || 0) + orders
     if (!isReturn) {
@@ -303,6 +415,7 @@ function processData(rows, meta = {}, dateRange = null) {
       products: Object.entries(salesmanProducts[name] || {}).sort((a, b) => b[1] - a[1]).map(([product, units]) => ({ product, units })),
       returnCount: rc, returnRevenue: Math.round(salesmanReturnRev[name] || 0),
       returnRate: tx > 0 ? Math.round((rc / tx) * 100) : 0,
+      forwardSales: tx - rc,
     }
   })
   const topReturnedProducts = Object.entries(productReturnCount)
@@ -322,6 +435,11 @@ function processData(rows, meta = {}, dateRange = null) {
     })
     .map(([name, value]) => ({ name, value }))
   const dowTotals = heatmap.map((row, d) => ({ day: DAYS[d], value: row.reduce((a, b) => a + b, 0) }))
+  const invoiceDowTotals = DAYS.map((day, i) => ({ day, value: invoicesByDow[i] }))
+  const productTypeItems = {}
+  for (const [pType, items] of Object.entries(productTypeItemsMap)) {
+    productTypeItems[pType] = Object.entries(items).sort((a, b) => b[1] - a[1]).map(([name, rev]) => ({ name, revenue: Math.round(rev) }))
+  }
 
   // Peak hour+day: single busiest heatmap cell
   let peakVal = 0, peakD = 0, peakH = 0
@@ -349,10 +467,10 @@ function processData(rows, meta = {}, dateRange = null) {
   return {
     trend, totalRevenue, totalOrders, aov, growth, totalDiscount, rspGap,
     categories, productTypes, topProducts, allProducts, salesmen, payments, brands, genders, ageGroups,
-    heatmap, dowTotals, peakHour: peakH, peakDay: peakD, slowHour: slowH, slowDay: slowD,
+    heatmap, dowTotals, invoiceDowTotals, peakHour: peakH, peakDay: peakD, slowHour: slowH, slowDay: slowD,
     weekendRatio, busiestDay, meta, grossRevenue, returnRevenue, returnCount, returnRate,
     momCurrent, momPrev, momChange, momCurrentLabel, momPrevLabel, monthlyBreakdown,
-    topReturnedProducts, totalRSP,
+    topReturnedProducts, totalRSP, availableOutlets, productTypeItems, availableMonths: months,
   }
 }
 
@@ -683,11 +801,79 @@ const TT = { background: T.TOOLTIP_BG, border: '1px solid rgba(255,255,255,0.15)
 const TC = false // disable hover cursor rectangle on bar charts
 const TS = { itemStyle: { color: '#f9fafb' }, labelStyle: { color: '#d1d5db' } }
 
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const DOW_LABELS = ['M','T','W','T','F','S','S']
+
+function MiniCalendar({ trend }) {
+  if (!trend || trend.length === 0) return null
+
+  const byDate = {}
+  trend.forEach(d => { if (d.fullDate) byDate[d.fullDate] = d.revenue })
+
+  const months = [...new Set(trend.filter(d => d.fullDate).map(d => d.fullDate.slice(0, 7)))]
+  if (!months.length) return null
+  const targetMonth = months[months.length - 1]
+  const [year, month] = targetMonth.split('-').map(Number)
+
+  const maxRev = Math.max(...trend.map(d => d.revenue), 1)
+  const peakDay = trend.reduce((best, d) => d.revenue > (best?.revenue ?? 0) ? d : best, null)
+
+  const daysInMonth = new Date(year, month, 0).getDate()
+  let startDow = new Date(year, month - 1, 1).getDay()
+  startDow = startDow === 0 ? 6 : startDow - 1
+
+  const today = new Date()
+  const isThisMonth = today.getFullYear() === year && today.getMonth() + 1 === month
+  const todayNum = today.getDate()
+
+  const cells = Array(startDow).fill(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  return (
+    <div style={{ flexShrink: 0, width: 164, fontFamily: 'inherit' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: BLUE, letterSpacing: '0.06em' }}>{MONTH_NAMES[month - 1].toUpperCase()}</span>
+        <span style={{ fontSize: 10, color: T.MUTED }}>{year}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+        {DOW_LABELS.map((d, i) => (
+          <div key={i} style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, color: T.MUTED, paddingBottom: 3 }}>{d}</div>
+        ))}
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} />
+          const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+          const rev = byDate[dateStr] || 0
+          const isPeak = dateStr === peakDay?.fullDate
+          const isToday = isThisMonth && d === todayNum
+          const intensity = rev > 0 ? 0.12 + (rev / maxRev) * 0.75 : 0
+          return (
+            <div key={i} title={rev > 0 ? `${dateStr}: RM${Math.round(rev).toLocaleString()}` : dateStr} style={{
+              width: '100%', aspectRatio: '1', borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 9, fontWeight: isPeak || isToday ? 800 : 500,
+              background: isPeak ? BLUE : isToday ? '#fee2e2' : rev > 0 ? `rgba(37,99,235,${intensity})` : 'transparent',
+              color: isPeak ? '#fff' : isToday ? '#dc2626' : rev > 0 ? (intensity > 0.5 ? '#1d4ed8' : T.MUTED) : T.MUTED,
+              cursor: 'default',
+              outline: isToday && !isPeak ? '1.5px solid #fca5a5' : 'none',
+            }}>{d}</div>
+          )
+        })}
+      </div>
+      {peakDay && (
+        <div style={{ marginTop: 8, fontSize: 9, color: T.MUTED, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: BLUE, flexShrink: 0 }} />
+          Peak: {peakDay.date} · RM{Math.round(peakDay.revenue).toLocaleString()}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function KPI({ icon, label, value, delta, color, small }) {
   return (
-    <div style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 12, padding: small ? '0.75rem 1rem' : '1rem 1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+    <div className="sd-kpi" style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 12, padding: small ? '0.75rem 1rem' : '1rem 1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
       <p style={{ fontSize: 11, color: T.MUTED, margin: '0 0 6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{icon} {label}</p>
-      <p title={String(value)} style={{ fontSize: small ? 16 : 'clamp(13px, 2.2vw, 20px)', fontWeight: 700, margin: 0, color: T.TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>{value}</p>
+      <p style={{ fontSize: small ? 16 : String(value).length > 11 ? 14 : String(value).length > 8 ? 17 : 20, fontWeight: 700, margin: 0, color: T.TEXT, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden' }}>{value}</p>
       {delta && <p style={{ fontSize: 11, margin: '4px 0 0', color: color || T.MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{delta}</p>}
     </div>
   )
@@ -695,11 +881,11 @@ function KPI({ icon, label, value, delta, color, small }) {
 
 function Card({ title, children, style, action }) {
   return (
-    <div style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 16, padding: '1.25rem', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', ...style }}>
+    <div className="sd-card" style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 16, padding: '1.25rem', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden', minWidth: 0, ...style }}>
       {title && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: T.MUTED, margin: 0 }}>{title}</p>
-          {action}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 8, minWidth: 0 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: T.MUTED, margin: 0, flexShrink: 0 }}>{title}</p>
+          <div style={{ fontSize: 11, color: T.MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1 }}>{action}</div>
         </div>
       )}
       {children}
@@ -722,6 +908,15 @@ function addDays(dateStr, n) {
 function formatRangeLabel(dateRange) {
   if (!dateRange) return 'All time'
   return `${fmtDateLabel(dateRange.start)} – ${fmtDateLabel(dateRange.end)}`
+}
+
+// Compact "2026-06-01 00:00:00 - 2026-06-30 23:59:59" → "01-Jun-2026 – 30-Jun-2026"
+function formatPeriodMeta(str) {
+  if (!str) return str
+  const dates = str.match(/\d{4}-\d{2}-\d{2}/g)
+  if (dates?.length >= 2) return `${fmtDateLabel(dates[0])} – ${fmtDateLabel(dates[1])}`
+  if (dates?.length === 1) return fmtDateLabel(dates[0])
+  return str
 }
 
 function DateRangePicker({ value, onChange, onClose, isMobile }) {
@@ -790,9 +985,10 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
     for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7))
     while (rows.length > 0 && rows[rows.length - 1].every(c => !c)) rows.pop()
 
+    const cellSize = isMobile ? 'calc((100vw - 48px) / 7)' : '32px'
     return (
-      <div style={{ minWidth: 224 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 32px)', gap: 0 }}>
+      <div style={{ minWidth: isMobile ? 0 : 224 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(7, ${cellSize})`, gap: 0 }}>
           {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
             <div key={d} style={{ textAlign: 'center', fontSize: 10, color: '#9ca3af', padding: '0 0 8px', fontWeight: 600, letterSpacing: '0.04em' }}>{d}</div>
           ))}
@@ -819,12 +1015,12 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
                 {/* Day circle */}
                 <div style={{
                   position: 'relative', zIndex: 1,
-                  width: 30, height: 30, borderRadius: '50%',
+                  width: isMobile ? 28 : 30, height: isMobile ? 28 : 30, borderRadius: '50%',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: (isS || isE) ? BLUE : 'transparent',
                   color: (isS || isE) ? '#fff' : inR ? BLUE : isToday ? BLUE : '#1f2937',
                   fontWeight: (isS || isE) ? 700 : isToday ? 600 : 400,
-                  fontSize: 13,
+                  fontSize: isMobile ? 12 : 13,
                   boxShadow: isToday && !(isS || isE) ? `inset 0 0 0 1.5px ${BLUE}` : 'none',
                 }}>
                   {parseInt(dateStr.split('-')[2])}
@@ -849,34 +1045,46 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
   )
 
   return (
+    <>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 199, background: isMobile ? 'rgba(0,0,0,0.35)' : 'transparent' }} />
     <div style={{
-      position: 'absolute', top: '100%', right: isMobile ? 'auto' : 0, left: isMobile ? '50%' : 'auto',
-      transform: isMobile ? 'translateX(-50%)' : 'none',
-      zIndex: 200, background: '#fff', borderRadius: 14,
-      boxShadow: '0 12px 48px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.06)',
-      border: '1px solid #e5e7eb', marginTop: 8, overflow: 'hidden',
-      width: isMobile ? 'calc(100vw - 24px)' : 'auto', minWidth: isMobile ? 0 : 560,
+      position: 'fixed',
+      bottom: isMobile ? 0 : 'auto',
+      top: isMobile ? 'auto' : 64,
+      left: isMobile ? 0 : 'auto',
+      right: isMobile ? 0 : 16,
+      zIndex: 200, background: '#fff',
+      paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 0,
+      borderRadius: isMobile ? '16px 16px 0 0' : 14,
+      boxShadow: isMobile ? '0 -8px 40px rgba(0,0,0,0.18)' : '0 12px 48px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.06)',
+      border: '1px solid #e5e7eb', marginTop: 0, overflow: 'hidden',
+      width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 0 : 560,
+      height: isMobile ? '82svh' : 'auto',
+      maxHeight: isMobile ? '82vh' : 'none',
+      display: isMobile ? 'flex' : 'block', flexDirection: isMobile ? 'column' : undefined,
     }}>
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: isMobile ? 1 : undefined, minHeight: isMobile ? 0 : undefined, overflow: isMobile ? 'hidden' : undefined }}>
 
         {/* Preset sidebar / top strip on mobile */}
         <div style={{
           width: isMobile ? '100%' : 148, background: '#fafafa',
           borderRight: isMobile ? 'none' : '1px solid #f0f0f0',
           borderBottom: isMobile ? '1px solid #f0f0f0' : 'none',
-          padding: isMobile ? '10px 12px' : '16px 0', flexShrink: 0,
+          padding: isMobile ? '10px 12px 8px' : '16px 0', flexShrink: 0,
         }}>
-          <p style={{ margin: isMobile ? '0 0 8px' : '0 0 8px 16px', fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick select</p>
-          <div style={{ display: isMobile ? 'flex' : 'block', flexWrap: 'wrap', gap: isMobile ? 4 : 0 }}>
+          <p style={{ margin: isMobile ? '0 0 7px' : '0 0 8px 16px', fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick select</p>
+          {/* Single-row horizontal scroll on mobile */}
+          <div style={{ display: isMobile ? 'flex' : 'block', flexWrap: isMobile ? 'nowrap' : undefined, gap: isMobile ? 6 : 0, overflowX: isMobile ? 'auto' : undefined, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {presets.map(({ label, fn }) => {
               const active = isPresetActive(fn)
               return isMobile ? (
                 <button key={label} onClick={() => applyPreset(fn)} style={{
-                  padding: '4px 10px', border: `1px solid ${active ? BLUE : '#e5e7eb'}`, borderRadius: 20,
-                  cursor: 'pointer', fontSize: 11,
+                  padding: '5px 12px', border: `1px solid ${active ? BLUE : '#e5e7eb'}`, borderRadius: 20,
+                  cursor: 'pointer', fontSize: 11, flexShrink: 0,
                   background: active ? '#eff6ff' : '#fff',
                   color: active ? BLUE : '#374151',
                   fontWeight: active ? 600 : 400,
+                  whiteSpace: 'nowrap',
                 }}>
                   {label}
                 </button>
@@ -898,7 +1106,7 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
         </div>
 
         {/* Calendar area */}
-        <div style={{ flex: 1, padding: isMobile ? '14px 12px 10px' : '20px 20px 16px', overflowX: 'auto' }}>
+        <div style={{ flex: 1, minHeight: 0, padding: isMobile ? '14px 12px 10px' : '20px 20px 16px', overflowX: 'auto', overflowY: isMobile ? 'auto' : undefined, WebkitOverflowScrolling: 'touch' }}>
           {isMobile ? (
             /* Single calendar on mobile */
             <div>
@@ -934,8 +1142,8 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ borderTop: '1px solid #f0f0f0', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fafafa' }}>
+      {/* Footer — sticky at bottom so Cancel/Apply always visible */}
+      <div style={{ borderTop: '1px solid #f0f0f0', padding: isMobile ? '10px 16px calc(10px + env(safe-area-inset-bottom))' : '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fafafa', flexShrink: 0 }}>
         <div style={{ fontSize: 13 }}>{footerLabel}</div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onClose} style={{ padding: '7px 18px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151', fontWeight: 500 }}>Cancel</button>
@@ -949,12 +1157,13 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
         </div>
       </div>
     </div>
+    </>
   )
 }
 
-function SectionLabel({ children }) {
+function SectionLabel({ children, id }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '2rem 0 1rem' }}>
+    <div id={id} className="sd-section" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '2rem 0 1rem', scrollMarginTop: 120 }}>
       <span style={{ fontSize: 11, fontWeight: 600, color: T.SECTION, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{children}</span>
       <div style={{ flex: 1, height: 1, background: T.BORDER }} />
     </div>
@@ -1035,17 +1244,24 @@ export default function Dashboard() {
 
   const [rawData, setRawData] = useState(null)
   const [fileName, setFileName] = useState(null)
+  const isDemo = fileName?.startsWith('demo_store')
   const [rawCompareData, setRawCompareData] = useState(null)
   const [compareFileName, setCompareFileName] = useState(null)
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState(null)
   const [dateRange, setDateRange] = useState(null)  // null = all time; { start, end } = filtered
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [outletFilter, setOutletFilter] = useState(null)
   const [search, setSearch] = useState('')
   const [productSearch, setProductSearch] = useState('')
   const [targets, setTargets] = useState(() => {
     try { return JSON.parse(localStorage.getItem('storedash-targets') || '{}') } catch { return {} }
   })
+  const [monthlyTargets, setMonthlyTargets] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('storedash-monthly-targets') || '{}') } catch { return {} }
+  })
+  const [editingMonthlyTarget, setEditingMonthlyTarget] = useState(false)
+  const [monthlyTargetInput, setMonthlyTargetInput] = useState('')
   const [uploadHistory, setUploadHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('storedash-history') || '[]') } catch { return [] }
   })
@@ -1056,21 +1272,236 @@ export default function Dashboard() {
   const [salesmanProductSearch, setSalesmanProductSearch] = useState('')
   const [heatView, setHeatView] = useState('a')
   const [staffView, setStaffView] = useState('a')
+  const [ptypeModal, setPtypeModal] = useState(null)
+  const [selectedMonth, setSelectedMonth] = useState(null)
   const [prodCountView, setProdCountView] = useState('a')
   const [draggingB, setDraggingB] = useState(false)
+  const [cloudFiles, setCloudFiles] = useState([])
+  const [cloudLoading, setCloudLoading] = useState(null)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [saveKey, setSaveKey] = useState('')
+  const [saveStatus, setSaveStatus] = useState(null)
+  const [showMenu, setShowMenu] = useState(false)
+  const [showAllSalesmen, setShowAllSalesmen] = useState(false)
+  const [showAllLeaderboard, setShowAllLeaderboard] = useState(false)
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true)
+    const goOnline  = () => setIsOffline(false)
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online',  goOnline)
+    return () => { window.removeEventListener('offline', goOffline); window.removeEventListener('online', goOnline) }
+  }, [])
+
+  const [aiResult, setAiResult] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState(null)
+  const [aiCached, setAiCached] = useState(false)
+  const [savedAnalyses, setSavedAnalyses] = useState([])
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false)
+
+  const [splashPhase, setSplashPhase] = useState('show') // 'show' | 'fade' | 'done'
+  const [parsing, setParsing] = useState(false)
+  const splashStartRef = useRef(Date.now())
+  const dismissSplash = useCallback(() => {
+    const elapsed = Date.now() - splashStartRef.current
+    const wait = Math.max(0, 700 - elapsed) // minimum 0.7s so animation is visible
+    setTimeout(() => {
+      setSplashPhase('fade')
+      setTimeout(() => setSplashPhase('done'), 400)
+    }, wait)
+  }, [])
   const fileRef = useRef()
   const compareFileRef = useRef()
   const fileCacheRef = useRef({})
+  const rawCsvRef = useRef(null)
 
-  const data = useMemo(() => rawData ? processData(rawData.rows, rawData.meta, dateRange) : null, [rawData, dateRange])
-  const compareData = useMemo(() => rawCompareData ? processData(rawCompareData.rows, rawCompareData.meta, dateRange) : null, [rawCompareData, dateRange])
+  const monthRange = selectedMonth ? { start: selectedMonth + '-01', end: selectedMonth + '-31' } : null
+  const effectiveRange = dateRange || monthRange
+  const data = useMemo(() => rawData ? processData(rawData.rows, rawData.meta, effectiveRange, outletFilter) : null, [rawData, effectiveRange, outletFilter])
+  const compareData = useMemo(() => rawCompareData ? processData(rawCompareData.rows, rawCompareData.meta, effectiveRange, outletFilter) : null, [rawCompareData, effectiveRange, outletFilter])
+
+  // Fingerprint: stable ID for this exact dataset — used for cache lookup
+  const aiFingerprint = useMemo(() => {
+    if (!data) return null
+    const raw = `${data.meta?.outlet || ''}_${data.meta?.period || ''}_${Math.round(data.totalRevenue)}_${data.totalOrders}`
+    return raw.replace(/[^a-z0-9]/gi, '_').toLowerCase().slice(0, 120)
+  }, [data])
+
+  // When data changes, clear result and auto-load cached analysis if available
+  useEffect(() => {
+    setAiResult(null)
+    setAiCached(false)
+    setAiError(null)
+    if (!aiFingerprint) return
+    fetch(`/.netlify/functions/ai-analysis?action=list`)
+      .then(r => r.json())
+      .then(list => {
+        if (!Array.isArray(list)) return
+        setSavedAnalyses(list)
+        const cached = list.find(e => e.fingerprint === aiFingerprint)
+        if (cached) {
+          // Load the full cached analysis from the server
+          fetch('/.netlify/functions/ai-analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fingerprint: aiFingerprint, _cacheOnly: true,
+              outlet: data?.meta?.outlet, period: data?.meta?.period,
+              totalRevenue: data?.totalRevenue || 0, totalOrders: data?.totalOrders || 0,
+            }),
+          }).then(r => r.json()).then(d => {
+            if (d.ok && d.cached && d.analysis) { setAiResult(d.analysis); setAiCached(true) }
+          }).catch(() => {})
+        }
+      })
+      .catch(() => {})
+  }, [aiFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load saved analyses list on mount (for home screen)
+  useEffect(() => {
+    fetch('/.netlify/functions/ai-analysis?action=list')
+      .then(r => r.json())
+      .then(list => { if (Array.isArray(list)) setSavedAnalyses(list) })
+      .catch(() => {})
+  }, [])
+
+  const deleteAnalysis = useCallback(async (fingerprint) => {
+    await fetch('/.netlify/functions/ai-analysis?action=delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint }),
+    }).catch(() => {})
+    setSavedAnalyses(prev => prev.filter(e => e.fingerprint !== fingerprint))
+    if (aiResult && aiFingerprint === fingerprint) { setAiResult(null); setAiCached(false) }
+  }, [aiResult, aiFingerprint])
+
+  const runAIAnalysis = useCallback(async (force = false) => {
+    if (!data) return
+    setAiLoading(true)
+    setAiError(null)
+    setAiCached(false)
+    try {
+      const payload = {
+        fingerprint: aiFingerprint,
+        forceRegenerate: force,
+        outlet: data.meta?.outlet,
+        period: data.meta?.period,
+        totalRevenue: data.totalRevenue,
+        totalOrders: data.totalOrders,
+        aov: data.aov,
+        growth: data.growth,
+        momChange: data.momChange,
+        returnRate: data.returnRate,
+        rspGap: data.rspGap,
+        peakDay: data.peakDay,
+        peakHour: data.peakHour,
+        topProducts: data.topProducts.slice(0, 10),
+        salesmen: data.salesmen.slice(0, 8).map(s => ({ name: s.name, revenue: s.revenue, orders: s.orders, returnRate: s.returnRate })),
+        categories: data.categories.slice(0, 6).map(c => ({ name: c.name, revenue: c.revenue, orders: c.orders })),
+        productTypes: data.productTypes.map(t => ({ name: t.name, revenue: t.revenue, orders: t.orders })),
+      }
+      const res = await fetch('/.netlify/functions/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error || 'Analysis failed')
+      setAiResult(json.analysis)
+      setAiCached(json.cached || false)
+      if (!json.cached) {
+        // Refresh saved list so new entry appears
+        fetch('/.netlify/functions/ai-analysis?action=list')
+          .then(r => r.json()).then(list => { if (Array.isArray(list)) setSavedAnalyses(list) }).catch(() => {})
+      }
+    } catch (e) {
+      setAiError(e.message)
+    } finally {
+      setAiLoading(false)
+    }
+  }, [data, aiFingerprint])
+
+  useEffect(() => {
+    fetch('/.netlify/functions/storedash-load?meta=true')
+      .then(r => r.ok ? r.json() : [])
+      .then(list => { if (Array.isArray(list)) setCloudFiles(list) })
+      .catch(() => {})
+      .finally(() => dismissSplash())
+  }, [dismissSplash])
+
+  // Scroll-triggered animations — only after splash is done
+  useEffect(() => {
+    if (splashPhase !== 'done') return
+    let obs
+    const t = setTimeout(() => {
+      obs = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) { e.target.classList.add('sd-in'); obs.unobserve(e.target) }
+        })
+      }, { threshold: 0.08, rootMargin: '0px 0px -24px 0px' })
+      document.querySelectorAll(
+        '.sd-card:not(.sd-in),.sd-kpi:not(.sd-in),.sd-section:not(.sd-in),.sd-home:not(.sd-in),.sd-row:not(.sd-in),.sd-pop:not(.sd-in)'
+      ).forEach(el => obs.observe(el))
+    }, 0)
+    return () => { clearTimeout(t); if (obs) obs.disconnect() }
+  }, [splashPhase, data, fileName, aiResult, savedAnalyses, cloudFiles, uploadHistory])
+
+  const loadCloud = async (fileEntry) => {
+    setCloudLoading(fileEntry.key)
+    setError(null)
+    try {
+      const res = await fetch(`/.netlify/functions/storedash-load?key=${encodeURIComponent(fileEntry.key)}`)
+      if (!res.ok) throw new Error('File not found')
+      const text = await res.text()
+      rawCsvRef.current = text
+      const blob = new Blob([text], { type: 'text/csv' })
+      const file = new File([blob], fileEntry.filename || 'cloud-data.csv', { type: 'text/csv' })
+      handleFile(file)
+    } catch {
+      setError('Failed to load cloud data.')
+    }
+    setCloudLoading(null)
+  }
+
+  const saveCloud = async () => {
+    if (!rawCsvRef.current) return
+    setSaveStatus('saving')
+    try {
+      const res = await fetch('/.netlify/functions/storedash-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csvText: rawCsvRef.current,
+          key: saveKey,
+          filename: fileName,
+          outlet: rawData?.meta?.outlet || '',
+          period: rawData?.meta?.period || '',
+          totalTx: rawData?.meta?.totalTx || null,
+        }),
+      })
+      if (res.ok) {
+        setSaveStatus('saved')
+        const newEntry = { key: 'file-' + (fileName || 'report').replace(/\.csv$/i, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 60), filename: fileName, outlet: rawData?.meta?.outlet, period: rawData?.meta?.period, totalTx: rawData?.meta?.totalTx, savedAt: new Date().toISOString() }
+        setCloudFiles(prev => [newEntry, ...prev.filter(f => f.key !== newEntry.key)])
+        setTimeout(() => { setShowSaveDialog(false); setSaveStatus(null); setSaveKey('') }, 1800)
+      } else {
+        const err = await res.json()
+        setSaveStatus(err.error === 'Wrong PIN' ? 'wrongpin' : 'error')
+      }
+    } catch {
+      setSaveStatus('error')
+    }
+  }
 
   const handleFile = useCallback(file => {
     if (!file) return
-    setError(null); setFileName(file.name)
+    setError(null); setFileName(file.name); setParsing(true)
+    const reader = new FileReader()
+    reader.onload = e => { rawCsvRef.current = e.target.result }
+    reader.readAsText(file)
     parseFile(file, parsed => {
       fileCacheRef.current[file.name] = parsed
-      setRawData(parsed)
+      setRawData(parsed); setParsing(false)
       const entry = {
         filename: file.name,
         outlet: parsed.meta?.outlet || '',
@@ -1084,7 +1515,7 @@ export default function Dashboard() {
         localStorage.setItem('storedash-history', JSON.stringify(next))
         return next
       })
-    }, setError)
+    }, err => { setParsing(false); setError(err) })
   }, [])
 
   const handleCompareFile = useCallback(file => {
@@ -1111,14 +1542,28 @@ export default function Dashboard() {
 
   const resetAll = () => {
     setRawData(null); setFileName(null); setRawCompareData(null); setCompareFileName(null)
-    setError(null); setSearch(''); setProductSearch(''); setAllProductSearch(''); setSelectedSalesman(null); setSalesmanSearch(''); setSalesmanProductSearch(''); setTargets({}); setDateRange(null); setShowDatePicker(false)
+    setError(null); setSearch(''); setProductSearch(''); setAllProductSearch(''); setSelectedSalesman(null); setSalesmanSearch(''); setSalesmanProductSearch(''); setTargets({}); setDateRange(null); setShowDatePicker(false); setOutletFilter(null)
   }
 
   useEffect(() => {
     localStorage.setItem('storedash-targets', JSON.stringify(targets))
   }, [targets])
 
+  useEffect(() => {
+    localStorage.setItem('storedash-monthly-targets', JSON.stringify(monthlyTargets))
+  }, [monthlyTargets])
+
+  const monthlyTargetKey = data?.meta?.outlet || 'default'
+  const monthlyTarget = monthlyTargets[monthlyTargetKey] || 0
+  const monthlyTargetPct = monthlyTarget > 0 ? Math.min(100, (data?.totalRevenue || 0) / monthlyTarget * 100) : 0
+  const saveMonthlyTarget = () => {
+    const val = parseFloat(monthlyTargetInput) || 0
+    setMonthlyTargets(t => ({ ...t, [monthlyTargetKey]: val }))
+    setEditingMonthlyTarget(false)
+  }
+
   const trend = data?.trend ?? []
+  const peakTrendPoint = trend.reduce((best, d) => d.revenue > (best?.revenue ?? 0) ? d : best, null)
 
   // Auto-insights: surface key signals from data
   const insights = useMemo(() => {
@@ -1128,8 +1573,8 @@ export default function Dashboard() {
       if (data.momChange >= 10) items.push({ type: 'positive', icon: '📈', text: `Revenue up ${data.momChange.toFixed(1)}% vs last month (${data.momPrevLabel} → ${data.momCurrentLabel})` })
       else if (data.momChange <= -10) items.push({ type: 'warning', icon: '📉', text: `Revenue down ${Math.abs(data.momChange).toFixed(1)}% vs last month — may need attention` })
     }
-    if (data.returnRate > 0.08) items.push({ type: 'warning', icon: '↩️', text: `Return rate is ${(data.returnRate * 100).toFixed(1)}% — above 8% threshold` })
-    else if (data.returnRate > 0) items.push({ type: 'neutral', icon: '↩️', text: `Return rate is ${(data.returnRate * 100).toFixed(1)}% — within normal range` })
+    if (data.returnRate > 8) items.push({ type: 'warning', icon: '↩️', text: `Return rate is ${data.returnRate.toFixed(1)}% — above 8% threshold` })
+    else if (data.returnRate > 0) items.push({ type: 'neutral', icon: '↩️', text: `Return rate is ${data.returnRate.toFixed(1)}% — within normal range` })
     const topSalesman = data.salesmen[0]
     const secondSalesman = data.salesmen[1]
     if (topSalesman && secondSalesman && topSalesman.revenue > secondSalesman.revenue * 1.5) {
@@ -1210,29 +1655,143 @@ export default function Dashboard() {
   }).filter(p => p.storeA > 0 || p.storeB > 0) : null
 
   return (
-    <div style={{ minHeight: '100vh', background: T.BG, color: T.TEXT, fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: T.BG, color: T.TEXT, fontFamily: "'Inter', system-ui, sans-serif", maxWidth: '100vw' }}>
 
-      {/* Navbar */}
+      {/* ── Splash screen ── */}
+      <style>{`
+        @keyframes splashSpin { to { transform: rotate(360deg); } }
+        @keyframes splashPop { from { transform: scale(0.82) translateY(10px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+        @keyframes splashDot { 0%,80%,100% { opacity: 0.2; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+        @keyframes sdFadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes sdFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes sdSlideLeft { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes sdSlideRight { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes sdPop { from { opacity: 0; transform: scale(0.93); } to { opacity: 1; transform: scale(1); } }
+        @keyframes sdShimmer { 0%,100% { background-position: 200% center; } 50% { background-position: -200% center; } }
+        /* All animated elements start invisible — IntersectionObserver reveals them */
+        .sd-card, .sd-kpi, .sd-section, .sd-home, .sd-row, .sd-pop { opacity: 0; }
+        /* Animations only fire when .sd-in is added (after splash + in viewport) */
+        .sd-card.sd-in { animation: sdFadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+        .sd-kpi.sd-in  { animation: sdFadeUp 0.4s cubic-bezier(0.22,1,0.36,1) both; }
+        .sd-section.sd-in { animation: sdSlideLeft 0.35s ease-out both; }
+        .sd-home.sd-in { animation: sdFadeUp 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+        .sd-row.sd-in  { animation: sdSlideLeft 0.35s cubic-bezier(0.22,1,0.36,1) both; }
+        .sd-pop.sd-in  { animation: sdPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+        /* Stagger delays — applied when sd-in is added */
+        .sd-kpi.sd-in:nth-child(1)  { animation-delay: 0ms }
+        .sd-kpi.sd-in:nth-child(2)  { animation-delay: 55ms }
+        .sd-kpi.sd-in:nth-child(3)  { animation-delay: 110ms }
+        .sd-kpi.sd-in:nth-child(4)  { animation-delay: 165ms }
+        .sd-kpi.sd-in:nth-child(5)  { animation-delay: 220ms }
+        .sd-kpi.sd-in:nth-child(6)  { animation-delay: 275ms }
+        .sd-card.sd-in:nth-child(1) { animation-delay: 0ms }
+        .sd-card.sd-in:nth-child(2) { animation-delay: 70ms }
+        .sd-card.sd-in:nth-child(3) { animation-delay: 140ms }
+        .sd-card.sd-in:nth-child(4) { animation-delay: 210ms }
+        .sd-card.sd-in:nth-child(5) { animation-delay: 280ms }
+        .sd-card.sd-in:nth-child(6) { animation-delay: 350ms }
+        .sd-home.sd-in:nth-child(1) { animation-delay: 60ms }
+        .sd-home.sd-in:nth-child(2) { animation-delay: 130ms }
+        .sd-home.sd-in:nth-child(3) { animation-delay: 200ms }
+        .sd-home.sd-in:nth-child(4) { animation-delay: 270ms }
+        .sd-home.sd-in:nth-child(5) { animation-delay: 340ms }
+        .sd-kpi.sd-in:hover  { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,0,0,0.10) !important; transition: transform 0.18s ease, box-shadow 0.18s ease; }
+        .sd-card.sd-in:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.10) !important; transition: box-shadow 0.2s ease; }
+        .sd-ai-btn {
+          background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
+          background-size: 200% auto !important;
+          animation: sdShimmer 3s linear infinite !important;
+        }
+        .sd-ai-btn:disabled { opacity: 0.45 !important; cursor: not-allowed !important; animation: none !important; background: #9ca3af !important; box-shadow: none !important; }
+        .sd-ai-btn:hover:not(:disabled) { opacity: 0.9 !important; transform: scale(1.02); transition: transform 0.15s ease; }
+      `}</style>
+      {splashPhase !== 'done' && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'linear-gradient(160deg, #080d1a 0%, #0a1628 45%, #0d1f3c 100%)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          opacity: splashPhase === 'fade' ? 0 : 1,
+          transition: 'opacity 0.4s ease',
+          pointerEvents: splashPhase === 'fade' ? 'none' : 'all',
+        }}>
+          {/* Subtle grid lines like hub homepage */}
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize: '40px 40px', pointerEvents: 'none' }} />
+          <div style={{ animation: 'splashPop 0.55s cubic-bezier(0.34,1.56,0.64,1)', textAlign: 'center', padding: '0 2rem', position: 'relative' }}>
+            <p style={{ color: '#e6a014', fontSize: 10, fontWeight: 800, letterSpacing: '0.35em', textTransform: 'uppercase', margin: '0 0 20px' }}>DJI QUEENSBAY MALL</p>
+            <div style={{ fontSize: 56, marginBottom: 16, lineHeight: 1 }}>🛸</div>
+            <h1 style={{ color: '#fff', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 6px', lineHeight: 1.1 }}>StoreDash</h1>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: '0 0 40px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>Operator Hub · Sales Analytics</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: '#3b82f6', animation: `splashDot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Offline overlay ── */}
+      {isOffline && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9998,
+          background: 'linear-gradient(160deg, #080d1a 0%, #0a1628 45%, #0d1f3c 100%)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0,
+        }}>
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px)', backgroundSize: '40px 40px', pointerEvents: 'none' }} />
+          <div style={{ textAlign: 'center', padding: '0 2rem', position: 'relative' }}>
+            <div style={{ fontSize: 52, marginBottom: 20 }}>📡</div>
+            <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 800, margin: '0 0 10px', letterSpacing: '-0.02em' }}>You are offline</h2>
+            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, margin: '0 0 32px', lineHeight: 1.6 }}>Connect to the internet to access StoreDash.<br />This page will reload automatically when you're back online.</p>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '10px 20px' }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }} />
+              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em' }}>NO CONNECTION</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Parsing / cloud-loading overlay ── */}
+      {(parsing || cloudLoading) && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 8888,
+          background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(6px)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20,
+        }}>
+          <div style={{ width: 48, height: 48, border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#60a5fa', borderRadius: '50%', animation: 'splashSpin 0.75s linear infinite' }} />
+          <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>{cloudLoading ? 'Loading from cloud…' : 'Analysing your data…'}</p>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>This only takes a moment</p>
+        </div>
+      )}
+
+      {/* Navbar wrapper — sticky so sub-bar sticks too */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 10 }}>
       <nav style={{
-        position: 'sticky', top: 0, zIndex: 10,
         borderBottom: `1px solid ${T.BORDER}`,
         background: T.NAV, backdropFilter: 'blur(12px)',
-        padding: '0 1rem', height: isMobile ? 'auto' : 56, minHeight: 56,
+        padding: '0 1rem', height: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-        flexWrap: isMobile ? 'wrap' : 'nowrap',
-        paddingTop: isMobile && data ? 8 : 0,
-        paddingBottom: isMobile && data ? 8 : 0,
+        flexWrap: 'nowrap', overflow: 'hidden',
         boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
       }}>
-        {/* Left: brand / home */}
-        <div
-          onClick={data ? resetAll : undefined}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, cursor: data ? 'pointer' : 'default', borderRadius: 8, padding: '2px 4px', transition: 'background 0.15s' }}
-          title={data ? 'Go to Home' : ''}
-        >
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>📊</div>
-          <span style={{ fontWeight: 800, fontSize: 15, color: BLUE, letterSpacing: '-0.01em' }}>StoreDash</span>
-          {data && <span style={{ fontSize: 10, color: T.MUTED, marginLeft: -2 }}>⌂</span>}
+        {/* Left: back link + brand / home */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <a
+            href="/"
+            style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: T.MUTED, textDecoration: 'none', background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 6, padding: '4px 9px', transition: 'color 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = BLUE}
+            onMouseLeave={e => e.currentTarget.style.color = T.MUTED}
+          >
+            {isMobile ? '←' : '← Operator Hub'}
+          </a>
+          <div
+            onClick={data ? resetAll : undefined}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: data ? 'pointer' : 'default', borderRadius: 8, padding: '2px 4px', transition: 'background 0.15s' }}
+            title={data ? 'Go to Home' : ''}
+          >
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>📊</div>
+            <span style={{ fontWeight: 800, fontSize: 15, color: BLUE, letterSpacing: '-0.01em' }}>StoreDash</span>
+            {data && <span style={{ fontSize: 10, color: T.MUTED, marginLeft: -2 }}>⌂</span>}
+          </div>
         </div>
 
         {/* Center: store context — hidden on mobile to save space */}
@@ -1240,14 +1799,20 @@ export default function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', border: `1px solid #bfdbfe`, borderRadius: 20, padding: '4px 12px' }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: BLUE, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: BLUE, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 180 }}>{data.meta?.outlet || fileName}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: BLUE, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 220 }}>
+                {data.availableOutlets?.length > 1
+                  ? (outletFilter ? outletLabel(outletFilter) : 'All Outlets')
+                  : (outletLabel(data.meta?.outlet) || fileName)}
+              </span>
             </div>
             {compareData && (
               <>
                 <span style={{ fontSize: 11, color: T.MUTED }}>vs</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f5f3ff', border: `1px solid #ddd6fe`, borderRadius: 20, padding: '4px 12px' }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: STORE_B_COLOR, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: STORE_B_COLOR, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 180 }}>{compareData.meta?.outlet || compareFileName}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: STORE_B_COLOR, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 220 }}>
+                    {outletLabel(compareData.meta?.outlet) || compareFileName}
+                  </span>
                 </div>
               </>
             )}
@@ -1255,10 +1820,61 @@ export default function Dashboard() {
         )}
 
         {/* Right: date picker + actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, position: 'relative', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, position: 'relative' }}>
           {data && (
             <>
-              {/* Date range picker button */}
+              {/* Month selector — desktop only (mobile gets sub-bar) */}
+              {!isMobile && data.availableMonths?.length > 1 && (
+                <div style={{ display: 'flex', gap: 3, background: '#e5e7eb', borderRadius: 8, padding: 2 }}>
+                  <button
+                    onClick={() => { setSelectedMonth(null); setDateRange(null) }}
+                    style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                      background: !selectedMonth ? BLUE : 'transparent',
+                      color: !selectedMonth ? '#fff' : T.MUTED,
+                      fontWeight: !selectedMonth ? 700 : 400 }}>
+                    All
+                  </button>
+                  {data.availableMonths.map(m => (
+                    <button key={m}
+                      onClick={() => {
+                        setSelectedMonth(m)
+                        setDateRange({ start: m + '-01', end: m + '-31' })
+                      }}
+                      style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                        background: selectedMonth === m ? BLUE : 'transparent',
+                        color: selectedMonth === m ? '#fff' : T.MUTED,
+                        fontWeight: selectedMonth === m ? 700 : 400 }}>
+                      {fmtMonth(m)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Outlet selector — desktop only (mobile gets sub-bar) */}
+              {!isMobile && data.availableOutlets?.length > 1 && (
+                <select
+                  value={outletFilter || ''}
+                  onChange={e => { setOutletFilter(e.target.value || null); setSelectedMonth(null) }}
+                  style={{
+                    fontSize: 12, padding: '5px 10px', borderRadius: 20, cursor: 'pointer',
+                    border: `1.5px solid ${outletFilter ? BLUE : T.BORDER_STRONG}`,
+                    background: outletFilter ? '#eff6ff' : T.CARD,
+                    color: outletFilter ? BLUE : T.TEXT,
+                    fontWeight: outletFilter ? 700 : 400,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                    maxWidth: 180, appearance: 'none',
+                    paddingRight: 24, backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
+                  }}
+                >
+                  <option value="">All Outlets</option>
+                  {data.availableOutlets.map(o => (
+                    <option key={o} value={o}>{outletLabel(o)}</option>
+                  ))}
+                </select>
+              )}
+
+              {/* Date range picker button — picker rendered outside nav to escape backdrop-filter containment */}
               <button
                 onClick={() => setShowDatePicker(p => !p)}
                 style={{
@@ -1272,21 +1888,14 @@ export default function Dashboard() {
                 }}
               >
                 <span>📅</span>
-                {!isMobile && <span>{formatRangeLabel(dateRange)}</span>}
-                {isMobile && dateRange && <span style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatRangeLabel(dateRange)}</span>}
+                {!isMobile
+                  ? <span>{formatRangeLabel(dateRange)}</span>
+                  : dateRange && <span style={{ fontSize: 11, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatRangeLabel(dateRange)}</span>
+                }
                 <span style={{ color: T.MUTED, fontSize: 10 }}>▾</span>
               </button>
               {dateRange && (
                 <button onClick={() => setDateRange(null)} title="Clear date filter" style={{ fontSize: 11, padding: '4px 7px', borderRadius: 6, border: `1px solid ${T.BORDER_STRONG}`, background: T.CARD, color: T.MUTED, cursor: 'pointer' }}>✕</button>
-              )}
-
-              {showDatePicker && (
-                <DateRangePicker
-                  value={dateRange}
-                  onChange={r => { setDateRange(r); setShowDatePicker(false) }}
-                  onClose={() => setShowDatePicker(false)}
-                  isMobile={isMobile}
-                />
               )}
 
               {!isMobile && <div style={{ width: 1, height: 20, background: T.BORDER_STRONG, margin: '0 2px' }} />}
@@ -1321,19 +1930,184 @@ export default function Dashboard() {
               )}
             </>
           )}
+          {data && !isMobile && (
+            <button onClick={() => { setShowSaveDialog(true); setSaveStatus(null); setSaveKey('') }}
+              title="Save current data to cloud so team can load it on any device"
+              style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: `1px solid #bfdbfe`, background: '#eff6ff', color: BLUE, cursor: 'pointer', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', whiteSpace: 'nowrap' }}>
+              ☁️ Save
+            </button>
+          )}
           <button onClick={resetAll}
-            style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: `1px solid ${T.BORDER_STRONG}`, background: data ? BLUE : T.CARD, color: data ? '#fff' : T.MUTED, cursor: 'pointer', fontWeight: data ? 600 : 400, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', whiteSpace: 'nowrap' }}>
-            {data ? '↑ Upload' : 'Upload CSV'}
+            style={{ fontSize: 12, padding: isMobile ? '5px 8px' : '5px 10px', borderRadius: 8, border: `1px solid ${T.BORDER_STRONG}`, background: data ? BLUE : T.CARD, color: data ? '#fff' : T.MUTED, cursor: 'pointer', fontWeight: data ? 600 : 400, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', whiteSpace: 'nowrap' }}>
+            {data ? (isMobile ? '↑' : '↑ Upload') : 'Upload CSV'}
           </button>
+          {data && (
+            <button onClick={() => setShowMenu(true)}
+              title="Jump to section"
+              style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${T.BORDER_STRONG}`, background: T.CARD, color: T.TEXT, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, padding: 0 }}>
+              <div style={{ width: 14, height: 1.5, background: 'currentColor', borderRadius: 1 }} />
+              <div style={{ width: 14, height: 1.5, background: 'currentColor', borderRadius: 1 }} />
+              <div style={{ width: 14, height: 1.5, background: 'currentColor', borderRadius: 1 }} />
+            </button>
+          )}
         </div>
       </nav>
+
+      {/* Mobile sub-bar: month tabs + outlet selector */}
+      {isMobile && data && (data.availableMonths?.length > 1 || data.availableOutlets?.length > 1) && (
+        <div style={{
+          background: T.NAV, backdropFilter: 'blur(12px)',
+          borderBottom: `1px solid ${T.BORDER}`,
+          padding: '6px 1rem',
+          display: 'flex', alignItems: 'center', gap: 8,
+          overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+          msOverflowStyle: 'none', scrollbarWidth: 'none',
+        }}>
+          {data.availableMonths?.length > 1 && (
+            <div style={{ display: 'flex', gap: 3, background: '#e5e7eb', borderRadius: 8, padding: 2, flexShrink: 0 }}>
+              <button
+                onClick={() => { setSelectedMonth(null); setDateRange(null) }}
+                style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                  background: !selectedMonth ? BLUE : 'transparent',
+                  color: !selectedMonth ? '#fff' : T.MUTED,
+                  fontWeight: !selectedMonth ? 700 : 400 }}>
+                All
+              </button>
+              {data.availableMonths.map(m => (
+                <button key={m}
+                  onClick={() => {
+                    setSelectedMonth(m)
+                    setDateRange({ start: m + '-01', end: m + '-31' })
+                  }}
+                  style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                    background: selectedMonth === m ? BLUE : 'transparent',
+                    color: selectedMonth === m ? '#fff' : T.MUTED,
+                    fontWeight: selectedMonth === m ? 700 : 400 }}>
+                  {fmtMonth(m)}
+                </button>
+              ))}
+            </div>
+          )}
+          {data.availableOutlets?.length > 1 && (
+            <select
+              value={outletFilter || ''}
+              onChange={e => { setOutletFilter(e.target.value || null); setSelectedMonth(null) }}
+              style={{
+                fontSize: 12, padding: '4px 8px', borderRadius: 20, cursor: 'pointer', flexShrink: 0,
+                border: `1.5px solid ${outletFilter ? BLUE : T.BORDER_STRONG}`,
+                background: outletFilter ? '#eff6ff' : T.CARD,
+                color: outletFilter ? BLUE : T.TEXT,
+                fontWeight: outletFilter ? 700 : 400,
+                maxWidth: 160, appearance: 'none',
+                paddingRight: 22, backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E")`,
+                backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center',
+              }}
+            >
+              <option value="">All Outlets</option>
+              {data.availableOutlets.map(o => (
+                <option key={o} value={o}>{outletLabel(o)}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+      </div>{/* end sticky nav wrapper */}
+
+      {/* Section jump menu */}
+      <style>{`
+        @keyframes slideInRight { from { transform: translateX(100%) } to { transform: translateX(0) } }
+        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+      `}</style>
+      {showMenu && (
+        <>
+          <div onClick={() => setShowMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.45)', animation: 'fadeIn 0.2s ease-out' }} />
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: isMobile ? 'min(88vw, 300px)' : 280, zIndex: 401, background: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 32px rgba(0,0,0,0.18)', animation: 'slideInRight 0.22s cubic-bezier(0.22,1,0.36,1)' }}>
+            <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', margin: 0 }}>Jump to section</p>
+                <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>Tap to scroll</p>
+              </div>
+              <button onClick={() => setShowMenu(false)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e5e7eb', background: '#f8fafc', color: '#64748b', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0 24px' }}>
+              {[
+                { id: 'sec-ai', icon: '✨', label: 'AI Analysis' },
+                { id: 'sec-target', icon: '🎯', label: 'Monthly Target' },
+                { id: 'sec-insights', icon: '💡', label: 'Auto Insights' },
+                { id: 'sec-overview', icon: '📊', label: 'Sales Overview' },
+                { id: 'sec-returns', icon: '↩️', label: 'Returns & Refunds' },
+                { id: 'sec-mom', icon: '📅', label: 'Month-over-Month' },
+                { id: 'sec-staff', icon: '👥', label: 'Staff Performance' },
+                { id: 'sec-products', icon: '📦', label: 'Product Count' },
+                { id: 'sec-discount', icon: '🏷️', label: 'Discount Analysis' },
+                { id: 'sec-traffic', icon: '🕐', label: 'Traffic Patterns' },
+              ].map(s => (
+                <button key={s.id} onClick={() => {
+                  setShowMenu(false)
+                  setTimeout(() => document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+                }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '13px 20px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span style={{ fontSize: 18, flexShrink: 0, width: 26, textAlign: 'center' }}>{s.icon}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Date picker rendered here (outside nav) so position:fixed isn't trapped by nav's backdrop-filter */}
+      {showDatePicker && (
+        <DateRangePicker
+          value={dateRange}
+          onChange={r => { setDateRange(r); setShowDatePicker(false) }}
+          onClose={() => setShowDatePicker(false)}
+          isMobile={isMobile}
+        />
+      )}
+
+      {/* Save to cloud dialog */}
+      {showSaveDialog && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowSaveDialog(false); setSaveStatus(null); setSaveKey('') } }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '1.75rem', width: '100%', maxWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <p style={{ fontWeight: 700, fontSize: 16, margin: '0 0 6px', color: T.TEXT }}>☁️ Save to Cloud</p>
+            <p style={{ fontSize: 13, color: T.MUTED, margin: '0 0 1.25rem' }}>Anyone on the team can load this data on their phone without re-uploading.</p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: T.TEXT, display: 'block', marginBottom: 6 }}>Save PIN</label>
+            <input
+              type="password"
+              value={saveKey}
+              onChange={e => { setSaveKey(e.target.value); setSaveStatus(null) }}
+              onKeyDown={e => e.key === 'Enter' && saveCloud()}
+              placeholder="Enter PIN to authorise save"
+              autoFocus
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${saveStatus === 'wrongpin' ? RED : T.BORDER_STRONG}`, fontSize: 14, marginBottom: 6, outline: 'none', boxSizing: 'border-box' }}
+            />
+            {saveStatus === 'wrongpin' && <p style={{ fontSize: 12, color: RED, margin: '0 0 10px' }}>Wrong PIN — check with your manager.</p>}
+            {saveStatus === 'error' && <p style={{ fontSize: 12, color: RED, margin: '0 0 10px' }}>Save failed. Try again.</p>}
+            {saveStatus === 'saved' && <p style={{ fontSize: 12, color: GREEN, margin: '0 0 10px' }}>✓ Saved! Team can now load this data.</p>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button onClick={() => { setShowSaveDialog(false); setSaveStatus(null); setSaveKey('') }}
+                style={{ flex: 1, padding: '9px', borderRadius: 8, border: `1px solid ${T.BORDER_STRONG}`, background: T.BG, color: T.MUTED, cursor: 'pointer', fontSize: 13 }}>
+                Cancel
+              </button>
+              <button onClick={saveCloud} disabled={!saveKey || saveStatus === 'saving' || saveStatus === 'saved'}
+                style={{ flex: 2, padding: '9px', borderRadius: 8, border: 'none', background: saveStatus === 'saved' ? GREEN : BLUE, color: '#fff', cursor: saveKey ? 'pointer' : 'default', fontSize: 13, fontWeight: 700, opacity: !saveKey ? 0.5 : 1 }}>
+                {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? '✓ Saved' : 'Save to Cloud'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ maxWidth: 1140, margin: '0 auto', padding: isMobile ? '1rem 0.75rem' : '2rem 1.5rem' }}>
 
         {/* Upload */}
         {!data && (
           <>
-            <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ marginBottom: '1.5rem', animation: 'sdFadeUp 0.5s cubic-bezier(0.22,1,0.36,1) both' }}>
               <h1 style={{ fontSize: 26, fontWeight: 700, margin: '0 0 6px', color: T.TEXT }}>Store Dashboard</h1>
               <p style={{ color: T.MUTED, fontSize: 14 }}>Upload your Kassie Customer Purchase Listing CSV to analyse sales</p>
             </div>
@@ -1362,8 +2136,103 @@ export default function Dashboard() {
               </button>
             </div>
 
+            {/* Cloud files card — always visible */}
+            <div className="sd-home" style={{ background: T.CARD, border: `1px solid ${cloudFiles.length ? '#bfdbfe' : T.BORDER}`, borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: cloudFiles.length ? 10 : 0 }}>
+                <span style={{ fontSize: 18 }}>☁️</span>
+                <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: cloudFiles.length ? '#1d4ed8' : T.TEXT }}>
+                  {cloudFiles.length ? `Cloud files (${cloudFiles.length})` : 'No cloud files yet'}
+                </p>
+              </div>
+              {cloudFiles.length === 0 && (
+                <p style={{ fontSize: 12, color: T.MUTED, margin: '6px 0 0' }}>Upload a CSV on desktop → tap ☁️ Save to sync it here for the whole team.</p>
+              )}
+              {cloudFiles.length > 0 && (
+                <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5, paddingRight: 2 }}>
+                  {cloudFiles.map((f, i) => {
+                    const ago = (() => {
+                      const diff = Math.floor((Date.now() - new Date(f.savedAt)) / 1000)
+                      if (diff < 60) return 'just now'
+                      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+                      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+                      return `${Math.floor(diff / 86400)}d ago`
+                    })()
+                    return (
+                      <div key={f.key} className="sd-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: '#eff6ff', borderRadius: 8, border: '1px solid #dbeafe', animationDelay: `${i * 50}ms` }}>
+                        <span style={{ fontSize: 14 }}>📂</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {f.outlet ? outletLabel(f.outlet) : f.filename}
+                          </p>
+                          <p style={{ fontSize: 11, color: '#3b82f6', margin: 0 }}>
+                            {f.period && <span>{formatPeriodMeta(f.period)} · </span>}
+                            {f.totalTx && <span>{f.totalTx} tx · </span>}
+                            {ago}
+                          </p>
+                        </div>
+                        <button onClick={() => loadCloud(f)} disabled={cloudLoading === f.key}
+                          style={{ padding: '5px 12px', borderRadius: 7, border: 'none', background: BLUE, color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                          {cloudLoading === f.key ? '…' : 'Load'}
+                        </button>
+                        <button onClick={async () => {
+                          await fetch('/.netlify/functions/storedash-load', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: f.key }),
+                          })
+                          setCloudFiles(prev => prev.filter(x => x.key !== f.key))
+                        }} style={{ padding: '5px 8px', borderRadius: 7, border: '1px solid #dbeafe', background: 'transparent', color: '#93c5fd', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>
+                          ✕
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Saved AI Analyses */}
+            {savedAnalyses.length > 0 && (
+              <div className="sd-home" style={{ background: T.CARD, border: '1px solid #e0e7ff', borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 16 }}>✨</span>
+                  <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: '#4f46e5' }}>Saved Analyses ({savedAnalyses.length})</p>
+                </div>
+                <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5, paddingRight: 2 }}>
+                  {savedAnalyses.map((a, i) => {
+                    const ago = (() => {
+                      const diff = Math.floor((Date.now() - new Date(a.generatedAt)) / 1000)
+                      if (diff < 60) return 'just now'
+                      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+                      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+                      return `${Math.floor(diff / 86400)}d ago`
+                    })()
+                    const isActive = a.fingerprint === aiFingerprint
+                    return (
+                      <div key={a.fingerprint} className="sd-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: isActive ? '#eef2ff' : '#f8f9ff', borderRadius: 8, border: `1px solid ${isActive ? '#c7d2fe' : '#e0e7ff'}`, animationDelay: `${i * 50}ms` }}>
+                        <span style={{ fontSize: 13 }}>🧠</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#4338ca' : '#374151', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {outletLabel(a.outlet) || a.outlet}
+                            {isActive && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: '#4f46e5', background: '#e0e7ff', borderRadius: 4, padding: '1px 5px' }}>Current</span>}
+                          </p>
+                          <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
+                            {a.period && <span>{formatPeriodMeta(a.period)} · </span>}
+                            RM {(a.revenue || 0).toLocaleString('en-MY', { maximumFractionDigits: 0 })} · {ago}
+                          </p>
+                        </div>
+                        <button onClick={() => deleteAnalysis(a.fingerprint)}
+                          style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #e0e7ff', background: 'transparent', color: '#a5b4fc', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>
+                          ✕
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Kassie export tip */}
-            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 16px', marginBottom: '1rem', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <div className="sd-home" style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 16px', marginBottom: '1rem', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>💡</span>
               <div>
                 <p style={{ fontWeight: 600, fontSize: 13, color: '#92400e', margin: '0 0 4px' }}>Kassie Export Tip — to match Branch/Outlet Net Sales</p>
@@ -1376,7 +2245,7 @@ export default function Dashboard() {
 
             {/* Recent history */}
             {uploadHistory.length > 0 && (
-              <div style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div className="sd-home" style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: T.TEXT }}>🕐 Recent uploads</p>
                   <button onClick={() => { setUploadHistory([]); localStorage.removeItem('storedash-history') }}
@@ -1404,7 +2273,7 @@ export default function Dashboard() {
                             fileRef.current.click()
                           }
                         }}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: T.BG, borderRadius: 8, border: `1px solid ${T.BORDER}`, cursor: 'pointer', transition: 'background 0.15s' }}
+                        className="sd-row" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: T.BG, borderRadius: 8, border: `1px solid ${T.BORDER}`, cursor: 'pointer', transition: 'background 0.15s', animationDelay: `${i * 50}ms` }}
                         onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
                         onMouseLeave={e => e.currentTarget.style.background = T.BG}
                       >
@@ -1412,8 +2281,8 @@ export default function Dashboard() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontSize: 12, fontWeight: 600, color: T.TEXT, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.filename}</p>
                           <p style={{ fontSize: 11, color: T.MUTED, margin: 0 }}>
-                            {h.outlet && <span>{h.outlet} · </span>}
-                            {h.period && <span>{h.period} · </span>}
+                            {h.outlet && <span>{outletLabel(h.outlet)} · </span>}
+                            {h.period && <span>{formatPeriodMeta(h.period)} · </span>}
                             {h.totalTx && <span>{h.totalTx} tx</span>}
                             {cached && <span style={{ color: GREEN }}> · Click to reload</span>}
                           </p>
@@ -1430,7 +2299,7 @@ export default function Dashboard() {
             )}
 
             {/* Supported formats */}
-            <div style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 12, padding: '1rem 1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div className="sd-home" style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 12, padding: '1rem 1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <p style={{ fontWeight: 600, fontSize: 13, margin: '0 0 4px', color: T.TEXT }}>Supported formats</p>
               <p style={{ fontSize: 12, color: T.MUTED, margin: '0 0 12px' }}>Auto-detected — just drop the file</p>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -1454,12 +2323,12 @@ export default function Dashboard() {
         )}
 
         {data && (
-          <>
+          <div key={fileName} style={{ animation: 'sdFadeIn 0.3s ease-out both' }}>
             {/* Meta banner */}
             {data.meta?.period && (
-              <div style={{ background: T.META_BG, border: `1px solid ${T.META_BORDER}`, borderRadius: 10, padding: '10px 16px', marginBottom: '1.5rem', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
-                {data.meta.outlet && <span style={{ fontSize: 12, color: T.META_TEXT, fontWeight: 600 }}>🏪 {data.meta.outlet}</span>}
-                {data.meta.period && <span style={{ fontSize: 12, color: '#3b82f6' }}>📅 {data.meta.period}</span>}
+              <div style={{ background: T.META_BG, border: `1px solid ${T.META_BORDER}`, borderRadius: 10, padding: isMobile ? '8px 12px' : '10px 16px', marginBottom: '1.5rem', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 5 : 24, flexWrap: 'wrap', alignItems: isMobile ? 'flex-start' : 'center' }}>
+                {data.meta.outlet && <span style={{ fontSize: 12, color: T.META_TEXT, fontWeight: 600 }}>🏪 {outletLabel(data.meta.outlet)}</span>}
+                {data.meta.period && <span style={{ fontSize: 12, color: '#3b82f6' }}>📅 {formatPeriodMeta(data.meta.period)}</span>}
                 {data.meta.generated && <span style={{ fontSize: 12, color: T.MUTED }}>🕐 Generated: {data.meta.generated}</span>}
                 {data.meta.totalTx && <span style={{ fontSize: 12, color: T.MUTED }}>🧾 {data.meta.totalTx} transactions</span>}
                 {data.meta.kassieTotal != null && !dateRange && (
@@ -1475,7 +2344,7 @@ export default function Dashboard() {
             {/* ── STORE COMPARISON ── */}
             {compareData && (
               <>
-                <SectionLabel>Store comparison</SectionLabel>
+                <SectionLabel id="sec-compare">Store comparison</SectionLabel>
 
                 {/* Side-by-side KPI comparison */}
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 12 }}>
@@ -1662,11 +2531,305 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* ── AI ANALYSIS ── */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <SectionLabel id="sec-ai">AI analysis</SectionLabel>
+
+              {/* Idle state */}
+              {!aiResult && !aiLoading && (
+                <div style={{
+                  position: 'relative', overflow: 'hidden', borderRadius: 16,
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
+                  padding: isMobile ? '28px 20px' : '36px 32px',
+                  display: 'flex', flexDirection: isMobile ? 'column' : 'row',
+                  alignItems: 'center', gap: 24,
+                }}>
+                  <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(99,102,241,0.15) 0%, transparent 60%), radial-gradient(circle at 80% 20%, rgba(37,99,235,0.12) 0%, transparent 50%)', pointerEvents: 'none' }} />
+                  <div style={{ textAlign: isMobile ? 'center' : 'left', flex: 1, position: 'relative' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>✦ AI Sales Intelligence</div>
+                    <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: '#fff', lineHeight: 1.25, marginBottom: 10 }}>
+                      Deep analysis + Malaysia<br />market comparison
+                    </div>
+                    <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65, maxWidth: 380 }}>
+                      Hot products · strengths · action items · benchmarked against other DJI outlets across Malaysia.
+                    </div>
+                    {savedAnalyses.some(a => a.fingerprint === aiFingerprint) && (
+                      <div style={{ marginTop: 6, fontSize: 11.5, color: '#6ee7b7', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span>✓</span><span>Saved analysis found — loads instantly, no API call</span>
+                      </div>
+                    )}
+                    {aiError && <div style={{ marginTop: 12, fontSize: 12, color: '#fca5a5', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '6px 12px', display: 'inline-block' }}>{aiError}</div>}
+                  </div>
+                  <div style={{ flexShrink: 0, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <button className="sd-ai-btn" disabled={!!isDemo} onClick={() => {
+                      if (savedAnalyses.some(a => a.fingerprint === aiFingerprint)) {
+                        setShowRegenConfirm(true)
+                      } else {
+                        runAIAnalysis()
+                      }
+                    }} style={{
+                      color: '#fff', border: 'none', borderRadius: 12,
+                      padding: isMobile ? '12px 28px' : '13px 32px',
+                      fontSize: 14, fontWeight: 700,
+                      cursor: isDemo ? 'not-allowed' : 'pointer',
+                      boxShadow: isDemo ? 'none' : '0 8px 24px rgba(99,102,241,0.45)',
+                      whiteSpace: 'nowrap',
+                    }}>✨ Generate Analysis</button>
+                    {isDemo && (
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', textAlign: 'center', maxWidth: 160, lineHeight: 1.4 }}>
+                        Not available for demo data — upload your own CSV to use AI Analysis
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Loading state */}
+              {aiLoading && (
+                <div style={{
+                  borderRadius: 16, background: 'linear-gradient(135deg, #0f172a, #1e1b4b)',
+                  padding: '48px 20px', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 16,
+                }}>
+                  <div style={{ position: 'relative', width: 48, height: 48 }}>
+                    <div style={{ position: 'absolute', inset: 0, border: '3px solid rgba(99,102,241,0.2)', borderTopColor: '#818cf8', borderRadius: '50%', animation: 'splashSpin 0.8s linear infinite' }} />
+                    <div style={{ position: 'absolute', inset: 6, border: '2px solid rgba(37,99,235,0.2)', borderTopColor: '#60a5fa', borderRadius: '50%', animation: 'splashSpin 1.2s linear infinite reverse' }} />
+                  </div>
+                  <div style={{ fontSize: 14, color: '#e2e8f0', fontWeight: 700 }}>Analysing your store…</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>Comparing against DJI Malaysia market benchmarks</div>
+                </div>
+              )}
+
+              {/* Results */}
+              {aiResult && (
+                <div className="sd-pop" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                  {/* Summary banner */}
+                  {aiResult.summary && (
+                    <div style={{
+                      borderRadius: 14, padding: '18px 20px',
+                      background: 'linear-gradient(135deg, #0f172a, #1e1b4b)',
+                      position: 'relative', overflow: 'hidden',
+                    }}>
+                      <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 10% 50%, rgba(99,102,241,0.12) 0%, transparent 60%)', pointerEvents: 'none' }} />
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>✦ Summary</div>
+                            {aiCached && <span style={{ fontSize: 10, fontWeight: 700, color: '#6ee7b7', background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 4, padding: '1px 6px' }}>✓ Saved</span>}
+                          </div>
+                          <div style={{ fontSize: 13.5, color: '#e2e8f0', lineHeight: 1.7, maxWidth: 640 }}>{aiResult.summary}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          {aiCached && (
+                            <button onClick={() => { setAiResult(null); setAiCached(false); setTimeout(runAIAnalysis, 50) }}
+                              style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              ↺ Refresh
+                            </button>
+                          )}
+                          <button onClick={() => { setAiResult(null); setAiError(null); setAiCached(false) }}
+                            style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            ✕
+                          </button>
+                          {aiFingerprint && (
+                            <button onClick={() => deleteAnalysis(aiFingerprint)}
+                              style={{ fontSize: 11, color: 'rgba(248,113,113,0.7)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              🗑
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* VS Malaysia */}
+                  {aiResult.vsMarket && (
+                    <div className="sd-pop" style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 14, overflow: 'hidden', animationDelay: '80ms' }}>
+                      <div style={{ padding: '12px 16px', borderBottom: `1px solid ${T.BORDER}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 15 }}>🇲🇾</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: T.TEXT }}>vs Malaysia Market</span>
+                      </div>
+                      <div style={{ padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                          {[
+                            { label: 'Revenue', value: aiResult.vsMarket.revenuePosition },
+                            { label: 'AOV', value: aiResult.vsMarket.aovPosition },
+                            { label: 'Return Rate', value: aiResult.vsMarket.returnRatePosition },
+                          ].map(({ label, value }) => {
+                            const isGood = /top|above|excellent|good/i.test(value)
+                            const isBad = /below|needs/i.test(value)
+                            const bg = isGood ? '#f0fdf4' : isBad ? '#fef2f2' : '#f8fafc'
+                            const border = isGood ? '#bbf7d0' : isBad ? '#fca5a5' : T.BORDER
+                            const color = isGood ? '#166534' : isBad ? '#dc2626' : T.MUTED
+                            return (
+                              <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: '6px 12px' }}>
+                                <div style={{ fontSize: 10, color: T.MUTED, fontWeight: 600, marginBottom: 2 }}>{label}</div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color, textTransform: 'capitalize' }}>{value}</div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <div style={{ fontSize: 12.5, color: '#374151', lineHeight: 1.65 }}>{aiResult.vsMarket.insight}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hot Products + Strengths */}
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '3fr 2fr', gap: 10 }}>
+                    {/* Hot Products */}
+                    {aiResult.hotProducts?.length > 0 && (
+                      <div className="sd-pop" style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 14, overflow: 'hidden', animationDelay: '160ms' }}>
+                        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${T.BORDER}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 15 }}>🔥</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: T.TEXT }}>Hot Products</span>
+                        </div>
+                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {aiResult.hotProducts.map((p, i) => {
+                            const medals = ['🥇','🥈','🥉','4️⃣']
+                            return (
+                              <div key={i} className="sd-row" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', animationDelay: `${i * 70}ms` }}>
+                                <div style={{ fontSize: 20, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>{medals[i] || (i + 1)}</div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: T.TEXT }}>{p.name}</span>
+                                    {p.badge && <span style={{ fontSize: 10, fontWeight: 700, color: '#d97706', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 5, padding: '1px 6px' }}>{p.badge}</span>}
+                                  </div>
+                                  <div style={{ fontSize: 11.5, color: T.MUTED, lineHeight: 1.5 }}>{p.insight}</div>
+                                </div>
+                                {p.revenue > 0 && <div style={{ fontSize: 12, fontWeight: 800, color: GREEN, flexShrink: 0 }}>RM {p.revenue.toLocaleString()}</div>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Strengths */}
+                    {aiResult.strengths?.length > 0 && (
+                      <div className="sd-pop" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, overflow: 'hidden', animationDelay: '240ms' }}>
+                        <div style={{ padding: '12px 16px', borderBottom: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 15 }}>💪</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>What's Working</span>
+                        </div>
+                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {aiResult.strengths.map((s, i) => (
+                            <div key={i} className="sd-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', animationDelay: `${i * 70}ms` }}>
+                              <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#dcfce7', border: '1.5px solid #86efac', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a' }} />
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#15803d', marginBottom: 2 }}>{s.title}</div>
+                                <div style={{ fontSize: 11.5, color: '#374151', lineHeight: 1.5 }}>{s.detail}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Items */}
+                  {aiResult.improvements?.length > 0 && (
+                    <div className="sd-pop" style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 14, overflow: 'hidden', animationDelay: '320ms' }}>
+                      <div style={{ padding: '12px 16px', borderBottom: `1px solid ${T.BORDER}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 15 }}>🎯</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: T.TEXT }}>Action Items</span>
+                        <span style={{ fontSize: 11, color: T.MUTED, marginLeft: 2 }}>— ordered by priority</span>
+                      </div>
+                      <div style={{ padding: '4px 0' }}>
+                        {aiResult.improvements.map((imp, i) => {
+                          const isHigh = imp.priority === 'high'
+                          return (
+                            <div key={i} className="sd-row" style={{ display: 'flex', gap: 14, padding: '12px 16px', borderBottom: i < aiResult.improvements.length - 1 ? `1px solid ${T.BORDER}` : 'none', alignItems: 'flex-start', animationDelay: `${i * 80}ms` }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0, paddingTop: 2 }}>
+                                <div style={{ width: 22, height: 22, borderRadius: 6, background: isHigh ? '#fef2f2' : '#fff7ed', border: `1.5px solid ${isHigh ? '#fca5a5' : '#fdba74'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: isHigh ? RED : ORANGE }}>{i + 1}</div>
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: 9.5, fontWeight: 800, color: isHigh ? RED : ORANGE, textTransform: 'uppercase', letterSpacing: '0.08em', background: isHigh ? '#fef2f2' : '#fff7ed', border: `1px solid ${isHigh ? '#fca5a5' : '#fdba74'}`, borderRadius: 4, padding: '1px 5px' }}>{imp.priority}</span>
+                                  <span style={{ fontSize: 12.5, fontWeight: 700, color: T.TEXT }}>{imp.area}</span>
+                                </div>
+                                <div style={{ fontSize: 12.5, color: '#1e293b', marginBottom: 3 }}>→ {imp.action}</div>
+                                <div style={{ fontSize: 11.5, color: T.MUTED, lineHeight: 1.5 }}>{imp.impact}</div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── MONTHLY TARGET ── */}
+            <div className="sd-card" style={{ marginBottom: '1.25rem' }}>
+              <SectionLabel id="sec-target">Monthly target</SectionLabel>
+              <div style={{ background: T.CARD, border: `1px solid ${T.BORDER}`, borderRadius: 12, padding: '1rem 1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                {editingMonthlyTarget ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: T.MUTED }}>RM</span>
+                    <input
+                      type="number"
+                      autoFocus
+                      value={monthlyTargetInput}
+                      onChange={e => setMonthlyTargetInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveMonthlyTarget(); if (e.key === 'Escape') setEditingMonthlyTarget(false) }}
+                      placeholder="e.g. 150000"
+                      style={{ flex: '1 1 140px', minWidth: 100, fontSize: 14, padding: '6px 10px', borderRadius: 8, border: `1px solid ${T.BORDER_STRONG}`, background: T.BG, color: T.TEXT }}
+                    />
+                    <button onClick={saveMonthlyTarget}
+                      style={{ fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 8, border: 'none', background: BLUE, color: '#fff', cursor: 'pointer' }}>
+                      Save
+                    </button>
+                    <button onClick={() => setEditingMonthlyTarget(false)}
+                      style={{ fontSize: 12, padding: '6px 14px', borderRadius: 8, border: `1px solid ${T.BORDER_STRONG}`, background: T.BG, color: T.MUTED, cursor: 'pointer' }}>
+                      Cancel
+                    </button>
+                  </div>
+                ) : monthlyTarget > 0 ? (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                      <div>
+                        <span style={{ fontSize: 20, fontWeight: 800, color: T.TEXT }}>{fmtMYR(data.totalRevenue)}</span>
+                        <span style={{ fontSize: 13, color: T.MUTED }}> / {fmtMYR(monthlyTarget)}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: monthlyTargetPct >= 100 ? GREEN : monthlyTargetPct >= 70 ? BLUE : ORANGE }}>
+                          {monthlyTargetPct.toFixed(0)}%
+                        </span>
+                        <button onClick={() => { setMonthlyTargetInput(String(monthlyTarget)); setEditingMonthlyTarget(true) }}
+                          style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1px solid ${T.BORDER_STRONG}`, background: T.BG, color: T.MUTED, cursor: 'pointer' }}>
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 4, background: T.BORDER, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${monthlyTargetPct}%`, borderRadius: 4, background: monthlyTargetPct >= 100 ? GREEN : monthlyTargetPct >= 70 ? BLUE : ORANGE, transition: 'width 0.5s ease' }} />
+                    </div>
+                    <p style={{ fontSize: 11.5, color: T.MUTED, margin: '8px 0 0' }}>
+                      {monthlyTargetPct >= 100
+                        ? `Target reached! ${fmtMYR(data.totalRevenue - monthlyTarget)} over.`
+                        : `${fmtMYR(monthlyTarget - data.totalRevenue)} remaining to hit target.`}
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: T.MUTED }}>No monthly target set for this outlet yet.</span>
+                    <button onClick={() => { setMonthlyTargetInput(''); setEditingMonthlyTarget(true) }}
+                      style={{ fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 8, border: 'none', background: BLUE, color: '#fff', cursor: 'pointer' }}>
+                      Set target
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* ── SALES OVERVIEW ── */}
             {/* ── AUTO INSIGHTS ── */}
             {insights.length > 0 && (
               <div style={{ marginBottom: '1.25rem' }}>
-                <SectionLabel>Auto insights</SectionLabel>
+                <SectionLabel id="sec-insights">Auto insights</SectionLabel>
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? '100%' : '260px'}, 1fr))`, gap: 8 }}>
                   {insights.map((ins, i) => (
                     <div key={i} style={{
@@ -1683,7 +2846,7 @@ export default function Dashboard() {
               </div>
             )}
 
-            <SectionLabel>Sales overview</SectionLabel>
+            <SectionLabel id="sec-overview">Sales overview</SectionLabel>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: '1.25rem' }}>
               <KPI icon="💰" label="Net revenue" value={fmtMYR(data.totalRevenue)}
                 delta={`${data.growth >= 0 ? '+' : ''}${data.growth.toFixed(1)}% trend`}
@@ -1708,30 +2871,39 @@ export default function Dashboard() {
                   ))}
                 </div>
               )}
-              <ResponsiveContainer width="100%" height={220}>
-                {compareData ? (
-                  <LineChart data={comparisonTrend} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={T.GRID} />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: T.MUTED }} interval={Math.max(0, Math.floor(comparisonTrend.length / 7))} />
-                    <YAxis tick={{ fontSize: 11, fill: T.MUTED }} tickFormatter={v => fmtMYRAbbr(v)} />
-                    <Tooltip {...TS} contentStyle={TT} cursor={TC} separator=": " formatter={(v, name) => [fmtMYR(v), name === 'storeA' ? nameA : nameB]} />
-                    <Line type="monotone" dataKey="storeA" stroke={BLUE} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="storeB" stroke={STORE_B_COLOR} strokeWidth={2} dot={false} activeDot={{ r: 4 }} strokeDasharray="5 3" />
-                  </LineChart>
-                ) : (
-                  <LineChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={T.GRID} />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: T.MUTED }} interval={Math.max(0, Math.floor(trend.length / 7))} />
-                    <YAxis tick={{ fontSize: 11, fill: T.MUTED }} tickFormatter={v => fmtMYRAbbr(v)} />
-                    <Tooltip {...TS} contentStyle={TT} cursor={TC} separator=": " formatter={v => [fmtMYR(v), 'Revenue']} />
-                    <Line type="monotone" dataKey="revenue" stroke={BLUE} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-                  </LineChart>
-                )}
-              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <ResponsiveContainer width="100%" height={220}>
+                    {compareData ? (
+                      <LineChart data={comparisonTrend} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={T.GRID} />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: T.MUTED }} interval={Math.max(0, Math.floor(comparisonTrend.length / 7))} />
+                        <YAxis tick={{ fontSize: 11, fill: T.MUTED }} tickFormatter={v => fmtMYRAbbr(v)} />
+                        <Tooltip {...TS} contentStyle={TT} cursor={TC} separator=": " formatter={(v, name) => [fmtMYR(v), name === 'storeA' ? nameA : nameB]} />
+                        <Line type="monotone" dataKey="storeA" stroke={BLUE} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                        <Line type="monotone" dataKey="storeB" stroke={STORE_B_COLOR} strokeWidth={2} dot={false} activeDot={{ r: 4 }} strokeDasharray="5 3" />
+                      </LineChart>
+                    ) : (
+                      <LineChart data={trend} margin={{ top: 28, right: 8, bottom: 0, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={T.GRID} />
+                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: T.MUTED }} interval={Math.max(0, Math.floor(trend.length / 7))} />
+                        <YAxis tick={{ fontSize: 11, fill: T.MUTED }} tickFormatter={v => fmtMYRAbbr(v)} />
+                        <Tooltip {...TS} contentStyle={TT} cursor={TC} separator=": " formatter={v => [fmtMYR(v), 'Revenue']} />
+                        <Line type="monotone" dataKey="revenue" stroke={BLUE} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                        {peakTrendPoint && (
+                          <ReferenceDot x={peakTrendPoint.date} y={peakTrendPoint.revenue} r={5} fill={BLUE} stroke="#fff" strokeWidth={2}
+                            label={{ value: `${peakTrendPoint.date} · ${fmtMYRAbbr(peakTrendPoint.revenue)}`, position: 'top', fontSize: 10, fill: BLUE, fontWeight: 700 }} />
+                        )}
+                      </LineChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
+                {!compareData && !isMobile && <MiniCalendar trend={trend} />}
+              </div>
             </Card>
 
             {/* ── RETURNS & REFUNDS ── */}
-            <SectionLabel>Returns & refunds</SectionLabel>
+            <SectionLabel id="sec-returns">Returns & refunds</SectionLabel>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: '1.25rem' }}>
               <KPI icon="💵" label="Gross revenue" value={fmtMYR(data.grossRevenue)} delta="before returns" />
               <KPI icon="↩️" label="Return revenue" value={fmtMYR(data.returnRevenue)} delta={`${data.returnCount} return transactions`} color={RED} />
@@ -1764,16 +2936,16 @@ export default function Dashboard() {
                     </div>
                   </Card>
                 )}
-                {data.salesmen.some(s => s.returnCount > 0) && (
+                {data.salesmen.some(s => s.returnCount > 0 && s.forwardSales > 0) && (
                   <Card title="Returns by salesman">
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {data.salesmen.filter(s => s.returnCount > 0).sort((a, b) => b.returnCount - a.returnCount).map((s, i) => (
+                      {data.salesmen.filter(s => s.returnCount > 0 && s.forwardSales > 0).sort((a, b) => b.returnCount - a.returnCount).map((s, i) => (
                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 11, color: T.MUTED, minWidth: 16, textAlign: 'right' }}>{i + 1}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                              <span style={{ fontSize: 12, fontWeight: 500, color: T.TEXT }}>{s.name}</span>
-                              <span style={{ fontSize: 11, color: s.returnRate >= 15 ? RED : T.MUTED }}>{s.returnRate}% · {s.returnCount} returns · {fmtMYR(s.returnRevenue)}</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 2 }}>
+                              <span style={{ fontSize: 12, fontWeight: 500, color: T.TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{s.name}</span>
+                              <span style={{ fontSize: 11, color: s.returnRate >= 15 ? RED : T.MUTED, flexShrink: 0, whiteSpace: 'nowrap' }}>{s.returnRate}% · {s.returnCount} ret · {fmtMYR(s.returnRevenue)}</span>
                             </div>
                             <div style={{ height: 4, background: T.BORDER, borderRadius: 2 }}>
                               <div style={{ height: '100%', width: `${Math.min(s.returnRate, 100)}%`, background: s.returnRate >= 15 ? RED : ORANGE, borderRadius: 2 }} />
@@ -1788,60 +2960,97 @@ export default function Dashboard() {
             )}
 
             {/* ── MONTH-OVER-MONTH ── */}
-            <SectionLabel>Month-over-month</SectionLabel>
+            <SectionLabel id="sec-mom">Month-over-month</SectionLabel>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : (compareData ? '1fr 1fr 1.5fr' : '1fr 2fr'), gap: 12, marginBottom: '1rem' }}>
-              {/* Store A MoM card */}
-              <Card title={compareData ? `${nameA} — MoM` : 'MoM revenue change'}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {[
-                    { label: fmtMonth(data.momPrevLabel) || 'Prev month', value: data.momPrev, color: T.MUTED },
-                    { label: fmtMonth(data.momCurrentLabel) || 'This month', value: data.momCurrent, color: BLUE },
-                  ].map(({ label, value, color }) => (
-                    <div key={label}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontSize: 12, color: T.MUTED }}>{label}</span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color }}>{fmtMYR(value)}</span>
+              {/* Store A MoM card — redesigned */}
+              {(() => {
+                const MomCard = ({ title, current, prev, currentLabel, prevLabel, change, color }) => {
+                  const isUp = change > 0
+                  const isDown = change < 0
+                  const arrowColor = isUp ? GREEN : isDown ? RED : T.MUTED
+                  const arrow = isUp ? '▲' : isDown ? '▼' : '—'
+                  const maxVal = Math.max(current, prev, 1)
+                  return (
+                    <Card title={title}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 10, color: T.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{currentLabel || 'This month'}</div>
+                          <div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{fmtMYR(current)}</div>
+                        </div>
+                        <div style={{ textAlign: 'center', paddingBottom: 4 }}>
+                          <div style={{ fontSize: 18, color: arrowColor, lineHeight: 1 }}>{arrow}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: arrowColor, marginTop: 2 }}>{change > 0 ? '+' : ''}{change.toFixed(1)}%</div>
+                        </div>
                       </div>
-                      <div style={{ background: '#e5e7eb', borderRadius: 4, height: 6 }}>
-                        <div style={{ background: color, height: '100%', borderRadius: 4, width: `${data.momPrev > 0 ? Math.min(100, value / Math.max(data.momCurrent, data.momPrev) * 100) : 100}%` }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {[
+                          { label: prevLabel || 'Prev month', value: prev, c: '#94a3b8' },
+                          { label: currentLabel || 'This month', value: current, c: color },
+                        ].map(({ label, value, c }) => (
+                          <div key={label}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                              <span style={{ fontSize: 11, color: T.MUTED }}>{label}</span>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: c }}>{fmtMYR(value)}</span>
+                            </div>
+                            <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5 }}>
+                              <div style={{ background: c, height: '100%', borderRadius: 4, width: `${Math.min(100, value / maxVal * 100)}%`, transition: 'width 0.4s' }} />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
-                  <div style={{ paddingTop: 4, borderTop: `1px solid ${T.BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 12, color: T.MUTED }}>Change</span>
-                    <DeltaBadge value={data.momChange} />
-                  </div>
-                </div>
-              </Card>
+                    </Card>
+                  )
+                }
+                return (
+                  <MomCard
+                    title={compareData ? `${nameA} — MoM` : 'MoM revenue change'}
+                    current={data.momCurrent} prev={data.momPrev}
+                    currentLabel={fmtMonth(data.momCurrentLabel)} prevLabel={fmtMonth(data.momPrevLabel)}
+                    change={data.momChange} color={BLUE}
+                  />
+                )
+              })()}
 
               {/* Store B MoM card — only when comparing */}
-              {compareData && (
-                <Card title={`${nameB} — MoM`}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {[
-                      { label: fmtMonth(compareData.momPrevLabel) || 'Prev month', value: compareData.momPrev, color: T.MUTED },
-                      { label: fmtMonth(compareData.momCurrentLabel) || 'This month', value: compareData.momCurrent, color: STORE_B_COLOR },
-                    ].map(({ label, value, color }) => (
-                      <div key={label}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <span style={{ fontSize: 12, color: T.MUTED }}>{label}</span>
-                          <span style={{ fontSize: 13, fontWeight: 600, color }}>{fmtMYR(value)}</span>
-                        </div>
-                        <div style={{ background: '#e5e7eb', borderRadius: 4, height: 6 }}>
-                          <div style={{ background: color, height: '100%', borderRadius: 4, width: `${compareData.momPrev > 0 ? Math.min(100, value / Math.max(compareData.momCurrent, compareData.momPrev) * 100) : 100}%` }} />
-                        </div>
+              {compareData && (() => {
+                const isUp = compareData.momChange > 0, isDown = compareData.momChange < 0
+                const arrowColor = isUp ? GREEN : isDown ? RED : T.MUTED
+                const arrow = isUp ? '▲' : isDown ? '▼' : '—'
+                const maxVal = Math.max(compareData.momCurrent, compareData.momPrev, 1)
+                return (
+                  <Card title={`${nameB} — MoM`}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: T.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{fmtMonth(compareData.momCurrentLabel) || 'This month'}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: STORE_B_COLOR, lineHeight: 1 }}>{fmtMYR(compareData.momCurrent)}</div>
                       </div>
-                    ))}
-                    <div style={{ paddingTop: 4, borderTop: `1px solid ${T.BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 12, color: T.MUTED }}>Change</span>
-                      <DeltaBadge value={compareData.momChange} />
+                      <div style={{ textAlign: 'center', paddingBottom: 4 }}>
+                        <div style={{ fontSize: 18, color: arrowColor, lineHeight: 1 }}>{arrow}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: arrowColor, marginTop: 2 }}>{compareData.momChange > 0 ? '+' : ''}{compareData.momChange.toFixed(1)}%</div>
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {[
+                        { label: fmtMonth(compareData.momPrevLabel) || 'Prev month', value: compareData.momPrev, c: '#94a3b8' },
+                        { label: fmtMonth(compareData.momCurrentLabel) || 'This month', value: compareData.momCurrent, c: STORE_B_COLOR },
+                      ].map(({ label, value, c }) => (
+                        <div key={label}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                            <span style={{ fontSize: 11, color: T.MUTED }}>{label}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: c }}>{fmtMYR(value)}</span>
+                          </div>
+                          <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5 }}>
+                            <div style={{ background: c, height: '100%', borderRadius: 4, width: `${Math.min(100, value / maxVal * 100)}%`, transition: 'width 0.4s' }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )
+              })()}
 
               {/* Monthly bar chart — single store or comparison */}
-              <Card title={compareData ? 'Monthly revenue — both stores' : 'Monthly revenue (last 6 months)'}>
+              <Card title={compareData ? 'Monthly revenue — both stores' : 'Monthly revenue'}>
                 <ResponsiveContainer width="100%" height={160}>
                   {compareData ? (
                     <BarChart data={monthlyComparison} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
@@ -1881,7 +3090,7 @@ export default function Dashboard() {
 
             {/* Category + Products */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.4fr 1fr', gap: 12, marginTop: 12 }}>
-              <Card title="Sales by product type">
+              <Card title="Sales by product type" action={!productTypeComparison && <span style={{ fontSize: 10, color: T.MUTED }}>click bar to drill down</span>}>
                 <ResponsiveContainer width="100%" height={190}>
                   {productTypeComparison ? (
                     <BarChart data={productTypeComparison} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
@@ -1894,7 +3103,9 @@ export default function Dashboard() {
                       <Bar dataKey="storeB" fill={STORE_B_COLOR} radius={[4,4,0,0]} name={nameB} />
                     </BarChart>
                   ) : (
-                    <BarChart data={data.productTypes} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
+                    <BarChart data={data.productTypes} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}
+                      onClick={e => e?.activePayload?.[0] && setPtypeModal(e.activePayload[0].payload.name)}
+                      style={{ cursor: 'pointer' }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={T.GRID} />
                       <XAxis dataKey="name" tick={{ fontSize: 12, fill: T.MUTED }} />
                       <YAxis tick={{ fontSize: 11, fill: T.MUTED }} tickFormatter={v => fmtMYRAbbr(v)} />
@@ -1908,7 +3119,7 @@ export default function Dashboard() {
                     </BarChart>
                   )}
                 </ResponsiveContainer>
-                <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
                   {productTypeComparison ? (
                     <>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: T.MUTED }}><div style={{ width: 8, height: 8, borderRadius: 2, background: BLUE }} />{nameA}</div>
@@ -1916,15 +3127,57 @@ export default function Dashboard() {
                     </>
                   ) : PTYPES.map(name => {
                     const pt = data.productTypes.find(p => p.name === name)
+                    const totalRev = data.productTypes.reduce((s, p) => s + p.revenue, 0)
+                    const pct = totalRev > 0 && pt ? Math.round(pt.revenue / totalRev * 100) : 0
                     return pt ? (
-                      <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: T.MUTED }}>
+                      <button key={name} onClick={() => setPtypeModal(name)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: T.MUTED, background: 'none', border: 'none', cursor: 'pointer', padding: '3px 7px', borderRadius: 6, transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}>
                         <div style={{ width: 8, height: 8, borderRadius: 2, background: PTYPE_COLORS[name] || '#94a3b8' }} />
-                        {name} · {fmtNum(pt.orders)} units
-                      </div>
+                        {name} · {fmtNum(pt.orders)} units · {pct}%
+                      </button>
                     ) : null
                   })}
                 </div>
               </Card>
+
+              {/* Product type drill-down modal */}
+              {ptypeModal && data.productTypeItems?.[ptypeModal] && (
+                <div onClick={() => setPtypeModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                  <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 460, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 12, height: 12, borderRadius: 3, background: PTYPE_COLORS[ptypeModal] || '#94a3b8' }} />
+                        <span style={{ fontWeight: 700, fontSize: 15, color: T.TEXT }}>{ptypeModal} — breakdown</span>
+                      </div>
+                      <button onClick={() => setPtypeModal(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 28, height: 28, cursor: 'pointer', fontSize: 16, color: T.MUTED, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                    </div>
+                    <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {(() => {
+                        const items = data.productTypeItems[ptypeModal]
+                        const maxRev = items[0]?.revenue || 1
+                        const totalRev = items.reduce((s, p) => s + p.revenue, 0)
+                        return items.map((p, i) => (
+                          <div key={i}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <span style={{ fontSize: 12, color: T.TEXT, maxWidth: '68%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                              <span style={{ fontSize: 11, color: T.MUTED, flexShrink: 0 }}>{fmtMYR(p.revenue)} · {Math.round(p.revenue / totalRev * 100)}%</span>
+                            </div>
+                            <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5 }}>
+                              <div style={{ background: PTYPE_COLORS[ptypeModal] || BLUE, height: '100%', borderRadius: 4, width: `${Math.round(p.revenue / maxRev * 100)}%` }} />
+                            </div>
+                          </div>
+                        ))
+                      })()}
+                    </div>
+                    <div style={{ paddingTop: 12, borderTop: `1px solid ${T.BORDER}`, marginTop: 12, display: 'flex', justifyContent: 'space-between', fontSize: 12, color: T.MUTED }}>
+                      <span>{data.productTypeItems[ptypeModal].length} products</span>
+                      <span>Total: <strong style={{ color: T.TEXT }}>{fmtMYR(data.productTypeItems[ptypeModal].reduce((s, p) => s + p.revenue, 0))}</strong></span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <Card
                 title="Top products"
@@ -1942,9 +3195,9 @@ export default function Dashboard() {
                   {activeProducts.length === 0 && <p style={{ fontSize: 12, color: T.MUTED, textAlign: 'center' }}>No products found</p>}
                   {activeProducts.map((p, i) => (
                     <div key={i}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                        <span style={{ fontSize: 11, color: T.TEXT, maxWidth: '65%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                        <span style={{ fontSize: 11, color: T.MUTED }}>{fmtMYR(p.revenue)}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 3 }}>
+                        <span style={{ fontSize: 11, color: T.TEXT, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                        <span style={{ fontSize: 11, color: T.MUTED, flexShrink: 0, whiteSpace: 'nowrap' }}>{fmtMYR(p.revenue)}</span>
                       </div>
                       <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5 }}>
                         <div style={{ background: COLORS[i % COLORS.length], height: '100%', borderRadius: 4, width: `${activeProducts[0] ? Math.round(p.revenue / activeProducts[0].revenue * 100) : 0}%`, transition: 'width 0.4s' }} />
@@ -1956,7 +3209,7 @@ export default function Dashboard() {
             </div>
 
             {/* ── STAFF PERFORMANCE ── */}
-            <SectionLabel>Staff performance</SectionLabel>
+            <SectionLabel id="sec-staff">Staff performance</SectionLabel>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
               <Card
                 title="Salesman leaderboard"
@@ -1982,6 +3235,9 @@ export default function Dashboard() {
                   const staffColor = (compareData && staffView === 'b') ? STORE_B_COLOR : BLUE
                   const staffBarBg = staffColor === STORE_B_COLOR ? '#ddd6fe' : '#bfdbfe'
                   const filtered = search ? staffData.salesmen.filter(s => s.name.toLowerCase().includes(search.toLowerCase())) : staffData.salesmen
+                  const LB_LIMIT = 10
+                  const visibleStaff = (!search && !showAllLeaderboard) ? filtered.slice(0, LB_LIMIT) : filtered
+                  const hasMoreStaff = !search && filtered.length > LB_LIMIT
                   return (
                     <>
                       <div style={{ marginBottom: 12 }}>
@@ -1993,7 +3249,7 @@ export default function Dashboard() {
                         />
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {filtered.map((s, i) => {
+                        {visibleStaff.map((s, i) => {
                           const target = staffView === 'a' ? (targets[s.name] || 0) : 0
                           const pct = target > 0 ? Math.min(100, s.revenue / target * 100) : 0
                           return (
@@ -2040,36 +3296,52 @@ export default function Dashboard() {
                         })}
                         {filtered.length === 0 && <p style={{ fontSize: 12, color: T.MUTED, textAlign: 'center' }}>No results</p>}
                       </div>
+                      {hasMoreStaff && (
+                        <button
+                          onClick={() => setShowAllLeaderboard(v => !v)}
+                          style={{ marginTop: 14, width: '100%', padding: '8px 0', borderRadius: 8, border: `1px solid ${T.BORDER_STRONG}`, background: T.BG, color: T.MUTED, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          {showAllLeaderboard ? `▲ Show top ${LB_LIMIT} only` : `▼ Show all ${filtered.length} salespeople`}
+                        </button>
+                      )}
                     </>
                   )
                 })()}
               </Card>
 
               <Card title="Payment methods">
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={data.payments} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 60 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={T.GRID} horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 10, fill: T.MUTED }} tickFormatter={v => fmtMYRAbbr(v)} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: T.MUTED }} width={80} tickFormatter={v => v.length > 16 ? v.slice(0, 14) + '…' : v} />
-                    <Tooltip {...TS} contentStyle={TT} cursor={TC} separator=": " formatter={v => [fmtMYR(v), 'Revenue']} />
-                    <Bar dataKey="revenue" radius={[0,4,4,0]}>
-                      {data.payments.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                  {data.payments.map((p, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: T.MUTED }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 2, background: COLORS[i % COLORS.length] }} />
-                      {p.name.length > 16 ? p.name.slice(0, 14) + '…' : p.name} ({fmtNum(p.count)})
-                    </div>
-                  ))}
-                </div>
+                {(() => {
+                  const totalPayRev = data.payments.reduce((s, p) => s + p.revenue, 0)
+                  return (
+                    <>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <BarChart data={data.payments} layout="vertical" margin={{ top: 0, right: 55, bottom: 0, left: 60 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={T.GRID} horizontal={false} />
+                          <XAxis type="number" tick={{ fontSize: 10, fill: T.MUTED }} tickFormatter={v => fmtMYRAbbr(v)} />
+                          <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: T.MUTED }} width={80} tickFormatter={v => v.length > 16 ? v.slice(0, 14) + '…' : v} />
+                          <Tooltip {...TS} contentStyle={TT} cursor={TC} separator=": "
+                            formatter={(v, _key, entry) => [`${fmtMYR(v)} (${totalPayRev > 0 ? Math.round(v / totalPayRev * 100) : 0}%)`, 'Revenue']} />
+                          <Bar dataKey="revenue" radius={[0,4,4,0]} label={{ position: 'right', formatter: v => totalPayRev > 0 ? `${Math.round(v / totalPayRev * 100)}%` : '', fontSize: 11, fill: T.MUTED }}>
+                            {data.payments.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                        {data.payments.map((p, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: T.MUTED }}>
+                            <div style={{ width: 8, height: 8, borderRadius: 2, background: COLORS[i % COLORS.length] }} />
+                            {p.name.length > 16 ? p.name.slice(0, 14) + '…' : p.name} ({fmtNum(p.count)} · {totalPayRev > 0 ? Math.round(p.revenue / totalPayRev * 100) : 0}%)
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )
+                })()}
               </Card>
             </div>
 
             {/* Product Count */}
-            <SectionLabel>Product count</SectionLabel>
+            <SectionLabel id="sec-products">Product count</SectionLabel>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
 
               {/* Left: all products — comparison-aware */}
@@ -2183,21 +3455,36 @@ export default function Dashboard() {
                         onChange={e => { setSalesmanSearch(e.target.value); setSelectedSalesman(null) }}
                         style={{ width: '100%', fontSize: 12, padding: '6px 10px', borderRadius: 8, border: `1px solid ${T.BORDER_STRONG}`, background: T.BG, color: T.TEXT, outline: 'none', marginBottom: 10 }}
                       />
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                        {pcData.salesmen.filter(s => !salesmanSearch || s.name.toLowerCase().includes(salesmanSearch.toLowerCase())).map((s, i) => (
-                          <button key={i} onClick={() => { setSelectedSalesman(selectedSalesman === s.name ? null : s.name); setSalesmanProductSearch('') }}
-                            style={{
-                              fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer',
-                              border: `1px solid ${selectedSalesman === s.name ? pcColor : T.BORDER_STRONG}`,
-                              background: selectedSalesman === s.name ? pcColor : T.BG,
-                              color: selectedSalesman === s.name ? '#fff' : T.MUTED,
-                              fontWeight: selectedSalesman === s.name ? 600 : 400,
-                              transition: 'all 0.15s',
-                            }}>
-                            {s.name}
-                          </button>
-                        ))}
-                      </div>
+                      {(() => {
+                        const allSalesmen = pcData.salesmen.filter(s => !salesmanSearch || s.name.toLowerCase().includes(salesmanSearch.toLowerCase()))
+                        const LIMIT = 12
+                        const visibleSalesmen = (!salesmanSearch && !showAllSalesmen) ? allSalesmen.slice(0, LIMIT) : allSalesmen
+                        const hasMore = !salesmanSearch && allSalesmen.length > LIMIT
+                        return (
+                          <>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: hasMore ? 8 : 14 }}>
+                              {visibleSalesmen.map((s, i) => (
+                                <button key={i} onClick={() => { setSelectedSalesman(selectedSalesman === s.name ? null : s.name); setSalesmanProductSearch('') }}
+                                  style={{
+                                    fontSize: 11, padding: '4px 12px', borderRadius: 20, cursor: 'pointer',
+                                    border: `1px solid ${selectedSalesman === s.name ? pcColor : T.BORDER_STRONG}`,
+                                    background: selectedSalesman === s.name ? pcColor : T.BG,
+                                    color: selectedSalesman === s.name ? '#fff' : T.MUTED,
+                                    fontWeight: selectedSalesman === s.name ? 600 : 400,
+                                    transition: 'all 0.15s',
+                                  }}>
+                                  {s.name}
+                                </button>
+                              ))}
+                            </div>
+                            {hasMore && (
+                              <button onClick={() => setShowAllSalesmen(v => !v)} style={{ fontSize: 11, color: BLUE, background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 14px', fontWeight: 600 }}>
+                                {showAllSalesmen ? '▲ Show less' : `▼ Show all ${allSalesmen.length} salesmen`}
+                              </button>
+                            )}
+                          </>
+                        )
+                      })()}
                       {(() => {
                         const sm = pcData.salesmen.find(s => s.name === selectedSalesman)
                         if (!selectedSalesman || !sm) return (
@@ -2244,7 +3531,7 @@ export default function Dashboard() {
             </div>
 
             {/* Discount */}
-            <SectionLabel>Discount analysis</SectionLabel>
+            <SectionLabel id="sec-discount">Discount analysis</SectionLabel>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: '1.25rem' }}>
               <KPI icon="🏷️" label="Total discount given" value={fmtMYR(data.totalDiscount)} />
               <KPI icon="📊" label="Discount rate" value={`${data.totalRevenue > 0 ? ((data.totalDiscount / (data.totalRevenue + data.totalDiscount)) * 100).toFixed(2) : '0'}%`} delta="of gross sales" />
@@ -2253,7 +3540,7 @@ export default function Dashboard() {
             </div>
 
             {/* Traffic heatmap */}
-            <SectionLabel>Traffic patterns</SectionLabel>
+            <SectionLabel id="sec-traffic">Traffic patterns</SectionLabel>
             <Card
               title="Hour × day heatmap"
               action={compareData ? (
@@ -2266,52 +3553,72 @@ export default function Dashboard() {
               {(() => {
                 const activeHeatData = (compareData && heatView === 'b') ? compareData : data
                 const activeHeatColor = (compareData && heatView === 'b') ? STORE_B_COLOR : BLUE
+                // Only show hours that have at least 1 sale across all days
+                const allHourTotals = HOURS.map(h => activeHeatData.heatmap.reduce((s, row) => s + row[h], 0))
+                const activeHours = HOURS.filter(h => allHourTotals[h] > 0)
                 const activeHeatMax = Math.max(...activeHeatData.heatmap.flat())
-                const hourTotals = HOURS.map(h => activeHeatData.heatmap.reduce((s, row) => s + row[h], 0))
                 const rowTotals = activeHeatData.heatmap.map(row => row.reduce((a, b) => a + b, 0))
                 const grandTotal = rowTotals.reduce((a, b) => a + b, 0)
-                const colMax = Math.max(...hourTotals)
+                const colMax = Math.max(...activeHours.map(h => allHourTotals[h]), 1)
+                const [rgb_r, rgb_g, rgb_b] = activeHeatColor === STORE_B_COLOR ? [124,58,237] : [37,99,235]
                 return (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginBottom: 12, fontSize: 11, color: T.MUTED }}>
                       <span>Low</span>
-                      {[0.08,0.3,0.5,0.7,0.9].map(o => {
-                        const [r,g,b] = activeHeatColor === STORE_B_COLOR ? [124,58,237] : [37,99,235]
-                        return <div key={o} style={{ width: 14, height: 14, borderRadius: 2, background: o === 0.08 ? '#f1f5f9' : `rgba(${r},${g},${b},${o})` }} />
-                      })}
+                      {[0.08,0.3,0.5,0.7,0.9].map(o => (
+                        <div key={o} style={{ width: 14, height: 14, borderRadius: 2, background: o === 0.08 ? '#f1f5f9' : `rgba(${rgb_r},${rgb_g},${rgb_b},${o})` }} />
+                      ))}
                       <span>High</span>
                     </div>
-                    <div style={{ overflowX: 'auto' }}>
-                      <div style={{ minWidth: 600 }}>
-                        <div style={{ display: 'flex', marginBottom: 4, paddingLeft: 36 }}>
-                          {HOURS.filter(h => h % 3 === 0).map(h => (
-                            <div key={h} style={{ flex: '3 0 0', fontSize: 10, color: T.MUTED }}>{fmtHour(h)}</div>
+                    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                      <div style={{ minWidth: isMobile ? activeHours.length * 22 + 76 : Math.max(400, activeHours.length * 30 + 90) }}>
+                        {/* Hour header */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 4, paddingLeft: 38 }}>
+                          {activeHours.map(h => (
+                            <div key={h} style={{ flex: 1, fontSize: 9, color: T.MUTED, textAlign: 'center', fontWeight: h % 3 === 0 ? 600 : 400 }}>{fmtHour(h)}</div>
                           ))}
                           <div style={{ width: 42, fontSize: 10, color: T.MUTED, textAlign: 'right', flexShrink: 0 }}>Total</div>
                         </div>
-                        {activeHeatData.heatmap.map((row, d) => (
-                          <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
-                            <span style={{ width: 32, fontSize: 11, color: T.MUTED, flexShrink: 0 }}>{DAYS[d]}</span>
-                            {row.map((val, h) => {
-                              const t = activeHeatMax > 0 ? val / activeHeatMax : 0
-                              const [r,g,b] = activeHeatColor === STORE_B_COLOR ? [124,58,237] : [37,99,235]
-                              return (
-                                <div key={h} title={`${Math.round(val)} orders`} style={{
-                                  flex: 1, height: 26, borderRadius: 2, minWidth: 0,
-                                  background: t === 0 ? '#f1f5f9' : `rgba(${r},${g},${b},${0.08 + t * 0.82})`,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                  {val > 0 && <span style={{ fontSize: 8, fontWeight: 600, lineHeight: 1, color: t > 0.55 ? '#fff' : '#475569', pointerEvents: 'none' }}>{Math.round(val)}</span>}
-                                </div>
-                              )
-                            })}
-                            <span style={{ width: 40, fontSize: 10, fontWeight: 600, color: activeHeatColor, textAlign: 'right', flexShrink: 0, paddingLeft: 4 }}>{rowTotals[d]}</span>
-                          </div>
-                        ))}
+                        {/* Day rows */}
+                        {activeHeatData.heatmap.map((row, d) => {
+                          const rowTotal = rowTotals[d]
+                          const rowPct = grandTotal > 0 ? Math.round(rowTotal / grandTotal * 100) : 0
+                          return (
+                            <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
+                              <span style={{ width: 34, fontSize: 11, color: T.MUTED, flexShrink: 0 }}>{DAYS[d]}</span>
+                              {activeHours.map(h => {
+                                const val = row[h]
+                                const t = activeHeatMax > 0 ? val / activeHeatMax : 0
+                                return (
+                                  <div key={h} title={`${DAYS[d]} ${fmtHour(h)}: ${Math.round(val)} orders`} style={{
+                                    flex: 1, height: isMobile ? 22 : 28, borderRadius: 3, minWidth: 0,
+                                    background: t === 0 ? '#f1f5f9' : `rgba(${rgb_r},${rgb_g},${rgb_b},${0.08 + t * 0.82})`,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  }}>
+                                    {val > 0 && <span style={{ fontSize: 9, fontWeight: 700, lineHeight: 1, color: t > 0.5 ? '#fff' : '#475569', pointerEvents: 'none' }}>{Math.round(val)}</span>}
+                                  </div>
+                                )
+                              })}
+                              <div style={{ width: 42, flexShrink: 0, textAlign: 'right', paddingLeft: 4 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: activeHeatColor }}>{rowTotal}</span>
+                                <span style={{ fontSize: 9, color: T.MUTED, marginLeft: 2 }}>{rowPct}%</span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                        {/* Totals row */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 4, borderTop: `1px solid ${T.BORDER}`, paddingTop: 4 }}>
-                          <span style={{ width: 32, fontSize: 10, color: T.MUTED, flexShrink: 0 }}>Total</span>
-                          {hourTotals.map((val, h) => <HeatmapCell key={h} value={val} max={colMax} isTotal />)}
-                          <span style={{ width: 40, fontSize: 10, fontWeight: 700, color: T.TEXT, textAlign: 'right', flexShrink: 0, paddingLeft: 4 }}>{grandTotal}</span>
+                          <span style={{ width: 34, fontSize: 10, color: T.MUTED, flexShrink: 0 }}>Total</span>
+                          {activeHours.map(h => {
+                            const val = allHourTotals[h]
+                            const t = colMax > 0 ? val / colMax : 0
+                            return (
+                              <div key={h} style={{ flex: 1, height: 20, borderRadius: 3, minWidth: 0, background: t === 0 ? '#f8fafc' : `rgba(${rgb_r},${rgb_g},${rgb_b},${0.06 + t * 0.35})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ fontSize: 9, fontWeight: 600, color: '#64748b' }}>{val > 0 ? val : ''}</span>
+                              </div>
+                            )
+                          })}
+                          <span style={{ width: 42, fontSize: 11, fontWeight: 700, color: T.TEXT, textAlign: 'right', flexShrink: 0, paddingLeft: 4 }}>{grandTotal}</span>
                         </div>
                       </div>
                     </div>
@@ -2415,15 +3722,18 @@ export default function Dashboard() {
                       <KPI key={label} icon={icon} label={label} value={value} delta={delta} />
                     ))}
                   </div>
-                  <Card title="Orders by day of week">
+                  <Card title="Invoices by day of week">
                     <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={td.dowTotals} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
+                      <BarChart data={td.invoiceDowTotals} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke={T.GRID} />
                         <XAxis dataKey="day" tick={{ fontSize: 12, fill: T.MUTED }} />
                         <YAxis tick={{ fontSize: 11, fill: T.MUTED }} />
-                        <Tooltip {...TS} contentStyle={TT} cursor={TC} separator=": " formatter={v => [fmtNum(v), 'Sales']} />
+                        <Tooltip {...TS} contentStyle={TT} cursor={TC} separator=": " formatter={v => [fmtNum(v), 'Invoices']} />
                         <Bar dataKey="value" radius={[4,4,0,0]}>
-                          {td.dowTotals.map((d, i) => <Cell key={i} fill={d.value === tdDowMax ? tdColor : (tdColor === STORE_B_COLOR ? '#ddd6fe' : '#bfdbfe')} />)}
+                          {td.invoiceDowTotals.map((d, i) => {
+                            const max = Math.max(...td.invoiceDowTotals.map(x => x.value))
+                            return <Cell key={i} fill={d.value === max ? tdColor : (tdColor === STORE_B_COLOR ? '#ddd6fe' : '#bfdbfe')} />
+                          })}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -2433,11 +3743,50 @@ export default function Dashboard() {
             })()}
 
             <p style={{ textAlign: 'center', fontSize: 11, color: '#d1d5db', padding: '2rem 0 1rem' }}>
-              StoreDash · built with React + Recharts
+              StoreDash · built with React + Recharts ·{' '}
+              <a href="https://github.com/kianc1220" target="_blank" rel="noreferrer" style={{ color: '#9ca3af', textDecoration: 'none' }}>© kianc1220</a>
             </p>
-          </>
+          </div>
         )}
       </div>
+
+      {/* Same-data regenerate confirmation modal */}
+      {showRegenConfirm && (
+        <div onClick={() => setShowRegenConfirm(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#1e1b4b', borderRadius: 18, padding: '1.75rem 2rem',
+            maxWidth: 380, width: '100%', boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+            border: '1px solid rgba(139,92,246,0.3)',
+          }}>
+            <div style={{ fontSize: 32, textAlign: 'center', marginBottom: 12 }}>🔁</div>
+            <h3 style={{ margin: '0 0 8px', color: '#e0e7ff', fontSize: 16, fontWeight: 700, textAlign: 'center' }}>
+              Same data detected
+            </h3>
+            <p style={{ margin: '0 0 20px', color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6, textAlign: 'center' }}>
+              A saved analysis already exists for this dataset. Regenerating will call the AI again and overwrite the saved result.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowRegenConfirm(false)} style={{
+                flex: 1, padding: '11px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)',
+                background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}>
+                Cancel
+              </button>
+              <button onClick={() => { setShowRegenConfirm(false); runAIAnalysis(true) }} style={{
+                flex: 1, padding: '11px', borderRadius: 10, border: 'none',
+                background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', color: '#fff',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(99,102,241,0.4)',
+              }}>
+                Yes, regenerate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
