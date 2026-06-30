@@ -1436,7 +1436,20 @@ export default function Dashboard() {
     const t = setTimeout(() => {
       obs = new IntersectionObserver((entries) => {
         entries.forEach(e => {
-          if (e.isIntersecting) { e.target.classList.add('sd-in'); obs.unobserve(e.target) }
+          if (e.isIntersecting) {
+            e.target.classList.add('sd-in')
+            obs.unobserve(e.target)
+            // Recharts' ResponsiveContainer only re-measures via ResizeObserver, which doesn't
+            // fire on opacity-only changes. If it measured 0 width while this card was hidden
+            // pre-reveal, the chart stays blank forever. Nudge its width to force a re-measure
+            // now that the card is actually laid out and visible.
+            requestAnimationFrame(() => {
+              e.target.querySelectorAll('.recharts-responsive-container').forEach(el => {
+                el.style.width = 'calc(100% - 1px)'
+                requestAnimationFrame(() => { el.style.width = '' })
+              })
+            })
+          }
         })
       }, { threshold: 0.08, rootMargin: '0px 0px -24px 0px' })
       document.querySelectorAll(
