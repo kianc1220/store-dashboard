@@ -33,26 +33,26 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const BLUE = '#2563eb'
-const GREEN = '#059669'
-const ORANGE = '#d97706'
-const RED = '#dc2626'
+const GREEN = '#34d399'
+const ORANGE = '#fbbf24'
+const RED = '#f87171'
 const PURPLE = '#7c3aed'
 const STORE_B_COLOR = '#7c3aed'
-const COLORS = ['#2563eb','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#ea580c']
+const COLORS = ['#2563eb','#7c3aed','#34d399','#fbbf24','#f87171','#0891b2','#ea580c']
 
 const T = {
-  BG: '#f4f6fb',
-  CARD: '#ffffff',
-  BORDER: 'rgba(0,0,0,0.07)',
-  BORDER_STRONG: 'rgba(0,0,0,0.14)',
-  TEXT: '#111827',
-  MUTED: '#6b7280',
-  GRID: 'rgba(0,0,0,0.05)',
-  NAV: 'rgba(244,246,251,0.95)',
-  TOOLTIP_BG: '#1f2937',
-  META_BG: '#eff6ff',
-  META_BORDER: '#bfdbfe',
-  META_TEXT: '#1d4ed8',
+  BG: 'var(--sd-bg)',
+  CARD: 'var(--sd-card)',
+  BORDER: 'var(--sd-w07)',
+  BORDER_STRONG: 'var(--sd-w16)',
+  TEXT: 'var(--sd-text)',
+  MUTED: 'var(--sd-muted)',
+  GRID: 'var(--sd-w06)',
+  NAV: 'var(--sd-nav)',
+  TOOLTIP_BG: 'var(--sd-card2)',
+  META_BG: 'rgba(37,99,235,0.14)',
+  META_BORDER: 'rgba(37,99,235,0.40)',
+  META_TEXT: '#60a5fa',
   SECTION: '#9ca3af',
 }
 
@@ -92,7 +92,7 @@ function seedRandom(d, h) {
   return x - Math.floor(x)
 }
 
-const PTYPE_COLORS = { Drone: '#2563eb', Handheld: '#059669', 'Home/Power': '#d97706', Others: '#94a3b8' }
+const PTYPE_COLORS = { Drone: '#2563eb', Handheld: '#34d399', 'Home/Power': '#fbbf24', Others: 'var(--sd-muted)' }
 const PTYPES = ['Drone', 'Handheld', 'Home/Power', 'Others']
 
 function classifyProductType(product, category) {
@@ -410,8 +410,18 @@ function processData(rows, meta = {}, dateRange = null, outletFilter = null) {
 
   // DJI Care Refresh attach rate: how many care plans sold per device (drone/handheld) sold
   let careUnits = 0, deviceUnits = 0
+  // careByDevice: device name (lowercase, from parens in Care product name) → units sold
+  const careByDevice = {}
   allProducts.forEach(p => {
-    if (/\bCARE\s+REFRESH\b/i.test(p.name)) { careUnits += p.units; return }
+    if (/\bCARE\s+REFRESH\b/i.test(p.name)) {
+      careUnits += p.units
+      const m = p.name.match(/\(([^)]+)\)/)
+      if (m) {
+        const dev = m[1].trim().toLowerCase()
+        careByDevice[dev] = (careByDevice[dev] || 0) + p.units
+      }
+      return
+    }
     const pType = classifyProductType(p.name, '')
     if (pType === 'Drone' || pType === 'Handheld') deviceUnits += p.units
   })
@@ -480,7 +490,7 @@ function processData(rows, meta = {}, dateRange = null, outletFilter = null) {
     weekendRatio, busiestDay, meta, grossRevenue, returnRevenue, returnCount, returnRate,
     momCurrent, momPrev, momChange, momCurrentLabel, momPrevLabel, monthlyBreakdown,
     topReturnedProducts, totalRSP, availableOutlets, productTypeItems, availableMonths: months,
-    careUnits, deviceUnits, careAttachRate,
+    careUnits, deviceUnits, careAttachRate, careByDevice,
   }
 }
 
@@ -842,7 +852,7 @@ function MiniCalendar({ trend }) {
   return (
     <div style={{ flexShrink: 0, width: 164, fontFamily: 'inherit' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: BLUE, letterSpacing: '0.06em' }}>{MONTH_NAMES[month - 1].toUpperCase()}</span>
+        <span style={{ fontSize: 11, fontWeight: 800, color: '#60a5fa', letterSpacing: '0.06em' }}>{MONTH_NAMES[month - 1].toUpperCase()}</span>
         <span style={{ fontSize: 10, color: T.MUTED }}>{year}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
@@ -861,8 +871,8 @@ function MiniCalendar({ trend }) {
               width: '100%', aspectRatio: '1', borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 9, fontWeight: isPeak || isToday ? 800 : 500,
-              background: isPeak ? BLUE : isToday ? '#fee2e2' : rev > 0 ? `rgba(37,99,235,${intensity})` : 'transparent',
-              color: isPeak ? '#fff' : isToday ? '#dc2626' : rev > 0 ? (intensity > 0.5 ? '#1d4ed8' : T.MUTED) : T.MUTED,
+              background: isPeak ? BLUE : isToday ? 'rgba(220,38,38,0.20)' : rev > 0 ? `rgba(37,99,235,${intensity})` : 'transparent',
+              color: isPeak ? '#fff' : isToday ? '#f87171' : rev > 0 ? (intensity > 0.5 ? '#60a5fa' : T.MUTED) : T.MUTED,
               cursor: 'default',
               outline: isToday && !isPeak ? '1.5px solid #fca5a5' : 'none',
             }}>{d}</div>
@@ -1019,16 +1029,16 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
                 style={{ position: 'relative', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', userSelect: 'none' }}
               >
                 {/* Range background strip */}
-                {inR && <div style={{ position: 'absolute', inset: '3px 0', background: '#e0eaff', borderRadius: isWeekStart ? '50% 0 0 50%' : isWeekEnd ? '0 50% 50% 0' : 0 }} />}
-                {isRangeStart && <div style={{ position: 'absolute', inset: '3px 0', background: '#e0eaff', left: '50%', borderRadius: 0 }} />}
-                {isRangeEnd && <div style={{ position: 'absolute', inset: '3px 0', background: '#e0eaff', right: '50%', borderRadius: 0 }} />}
+                {inR && <div style={{ position: 'absolute', inset: '3px 0', background: 'rgba(37,99,235,0.22)', borderRadius: isWeekStart ? '50% 0 0 50%' : isWeekEnd ? '0 50% 50% 0' : 0 }} />}
+                {isRangeStart && <div style={{ position: 'absolute', inset: '3px 0', background: 'rgba(37,99,235,0.22)', left: '50%', borderRadius: 0 }} />}
+                {isRangeEnd && <div style={{ position: 'absolute', inset: '3px 0', background: 'rgba(37,99,235,0.22)', right: '50%', borderRadius: 0 }} />}
                 {/* Day circle */}
                 <div style={{
                   position: 'relative', zIndex: 1,
                   width: isMobile ? 28 : 30, height: isMobile ? 28 : 30, borderRadius: '50%',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: (isS || isE) ? BLUE : 'transparent',
-                  color: (isS || isE) ? '#fff' : inR ? BLUE : isToday ? BLUE : '#1f2937',
+                  color: (isS || isE) ? '#fff' : inR ? '#60a5fa' : isToday ? BLUE : 'var(--sd-text2)',
                   fontWeight: (isS || isE) ? 700 : isToday ? 600 : 400,
                   fontSize: isMobile ? 12 : 13,
                   boxShadow: isToday && !(isS || isE) ? `inset 0 0 0 1.5px ${BLUE}` : 'none',
@@ -1045,13 +1055,13 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
 
   const canApply = (selStart && selEnd) || (!selStart && !selEnd)
   const footerLabel = selStart && selEnd
-    ? <><strong style={{ color: '#111' }}>{fmtDateLabel(selStart)}</strong><span style={{ color: '#9ca3af', margin: '0 8px' }}>→</span><strong style={{ color: '#111' }}>{fmtDateLabel(selEnd)}</strong></>
+    ? <><strong style={{ color: 'var(--sd-text)' }}>{fmtDateLabel(selStart)}</strong><span style={{ color: '#9ca3af', margin: '0 8px' }}>→</span><strong style={{ color: 'var(--sd-text)' }}>{fmtDateLabel(selEnd)}</strong></>
     : picking
-      ? <><strong style={{ color: '#111' }}>{fmtDateLabel(selStart)}</strong><span style={{ color: '#9ca3af', margin: '0 8px' }}>→</span><span style={{ color: ORANGE, fontStyle: 'italic' }}>pick end date</span></>
+      ? <><strong style={{ color: 'var(--sd-text)' }}>{fmtDateLabel(selStart)}</strong><span style={{ color: '#9ca3af', margin: '0 8px' }}>→</span><span style={{ color: ORANGE, fontStyle: 'italic' }}>pick end date</span></>
       : <span style={{ color: '#9ca3af' }}>Select a start date</span>
 
   const NavBtn = ({ onClick, children }) => (
-    <button onClick={onClick} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#6b7280', flexShrink: 0 }}>{children}</button>
+    <button onClick={onClick} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'var(--sd-card3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: 'var(--sd-muted)', flexShrink: 0 }}>{children}</button>
   )
 
   return (
@@ -1063,11 +1073,11 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
       top: isMobile ? 'auto' : 64,
       left: isMobile ? 0 : 'auto',
       right: isMobile ? 0 : 16,
-      zIndex: 200, background: '#fff',
+      zIndex: 200, background: 'var(--sd-card2)',
       paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 0,
       borderRadius: isMobile ? '16px 16px 0 0' : 14,
       boxShadow: isMobile ? '0 -8px 40px rgba(0,0,0,0.18)' : '0 12px 48px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.06)',
-      border: '1px solid #e5e7eb', marginTop: 0, overflow: 'hidden',
+      border: '1px solid rgba(255,255,255,0.12)', marginTop: 0, overflow: 'hidden',
       width: isMobile ? '100%' : 'auto', minWidth: isMobile ? 0 : 560,
       height: isMobile ? '82svh' : 'auto',
       maxHeight: isMobile ? '82vh' : 'none',
@@ -1077,9 +1087,9 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
 
         {/* Preset sidebar / top strip on mobile */}
         <div style={{
-          width: isMobile ? '100%' : 148, background: '#fafafa',
-          borderRight: isMobile ? 'none' : '1px solid #f0f0f0',
-          borderBottom: isMobile ? '1px solid #f0f0f0' : 'none',
+          width: isMobile ? '100%' : 148, background: 'var(--sd-card3)',
+          borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
+          borderBottom: isMobile ? '1px solid rgba(255,255,255,0.08)' : 'none',
           padding: isMobile ? '10px 12px 8px' : '16px 0', flexShrink: 0,
         }}>
           <p style={{ margin: isMobile ? '0 0 7px' : '0 0 8px 16px', fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick select</p>
@@ -1089,10 +1099,10 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
               const active = isPresetActive(fn)
               return isMobile ? (
                 <button key={label} onClick={() => applyPreset(fn)} style={{
-                  padding: '5px 12px', border: `1px solid ${active ? BLUE : '#e5e7eb'}`, borderRadius: 20,
+                  padding: '5px 12px', border: `1px solid ${active ? BLUE : 'var(--sd-w12)'}`, borderRadius: 20,
                   cursor: 'pointer', fontSize: 11, flexShrink: 0,
-                  background: active ? '#eff6ff' : '#fff',
-                  color: active ? BLUE : '#374151',
+                  background: active ? 'rgba(37,99,235,0.14)' : 'var(--sd-card2)',
+                  color: active ? '#60a5fa' : 'var(--sd-text2)',
                   fontWeight: active ? 600 : 400,
                   whiteSpace: 'nowrap',
                 }}>
@@ -1102,8 +1112,8 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
                 <button key={label} onClick={() => applyPreset(fn)} style={{
                   display: 'flex', alignItems: 'center', width: '100%', textAlign: 'left',
                   padding: '7px 16px', border: 'none', cursor: 'pointer', fontSize: 13,
-                  background: active ? '#eff6ff' : 'transparent',
-                  color: active ? BLUE : '#374151',
+                  background: active ? 'rgba(37,99,235,0.14)' : 'transparent',
+                  color: active ? '#60a5fa' : 'var(--sd-text2)',
                   fontWeight: active ? 600 : 400,
                 }}>
                   {active && <span style={{ width: 3, height: 14, background: BLUE, borderRadius: 2, marginRight: 8, flexShrink: 0 }} />}
@@ -1122,7 +1132,7 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <NavBtn onClick={() => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) } else setViewMonth(m => m - 1) }}>‹</NavBtn>
-                <span style={{ fontWeight: 700, fontSize: 14, color: '#111' }}>{MONTHS_SHORT[viewMonth]} {viewYear}</span>
+                <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--sd-text)' }}>{MONTHS_SHORT[viewMonth]} {viewYear}</span>
                 <NavBtn onClick={() => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) } else setViewMonth(m => m + 1) }}>›</NavBtn>
               </div>
               {renderCal(viewYear, viewMonth)}
@@ -1133,16 +1143,16 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                   <NavBtn onClick={() => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) } else setViewMonth(m => m - 1) }}>‹</NavBtn>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: '#111' }}>{MONTHS_SHORT[viewMonth]} {viewYear}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--sd-text)' }}>{MONTHS_SHORT[viewMonth]} {viewYear}</span>
                   <div style={{ width: 28 }} />
                 </div>
                 {renderCal(viewYear, viewMonth)}
               </div>
-              <div style={{ width: 1, background: '#f0f0f0', margin: '0 -4px' }} />
+              <div style={{ width: 1, background: 'var(--sd-w08)', margin: '0 -4px' }} />
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div style={{ width: 28 }} />
-                  <span style={{ fontWeight: 700, fontSize: 14, color: '#111' }}>{MONTHS_SHORT[rightMonth]} {rightYear}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--sd-text)' }}>{MONTHS_SHORT[rightMonth]} {rightYear}</span>
                   <NavBtn onClick={() => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) } else setViewMonth(m => m + 1) }}>›</NavBtn>
                 </div>
                 {renderCal(rightYear, rightMonth)}
@@ -1153,14 +1163,14 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
       </div>
 
       {/* Footer — sticky at bottom so Cancel/Apply always visible */}
-      <div style={{ borderTop: '1px solid #f0f0f0', padding: isMobile ? '10px 16px calc(10px + env(safe-area-inset-bottom))' : '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fafafa', flexShrink: 0 }}>
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: isMobile ? '10px 16px calc(10px + env(safe-area-inset-bottom))' : '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--sd-card3)', flexShrink: 0 }}>
         <div style={{ fontSize: 13 }}>{footerLabel}</div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ padding: '7px 18px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151', fontWeight: 500 }}>Cancel</button>
+          <button onClick={onClose} style={{ padding: '7px 18px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'var(--sd-card2)', cursor: 'pointer', fontSize: 13, color: 'var(--sd-text2)', fontWeight: 500 }}>Cancel</button>
           <button
             onClick={() => { onChange(selStart && selEnd ? { start: selStart, end: selEnd } : null); onClose() }}
             disabled={!canApply}
-            style={{ padding: '7px 22px', borderRadius: 8, border: 'none', background: canApply ? BLUE : '#bfdbfe', color: '#fff', cursor: canApply ? 'pointer' : 'default', fontSize: 13, fontWeight: 700, letterSpacing: '0.01em' }}
+            style={{ padding: '7px 22px', borderRadius: 8, border: 'none', background: canApply ? BLUE : 'rgba(37,99,235,0.40)', color: '#fff', cursor: canApply ? 'pointer' : 'default', fontSize: 13, fontWeight: 700, letterSpacing: '0.01em' }}
           >
             Apply
           </button>
@@ -1185,11 +1195,11 @@ function HeatmapCell({ value, max, isTotal }) {
   return (
     <div title={`${Math.round(value)} orders`} style={{
       flex: 1, height: 26, borderRadius: 2, minWidth: 0,
-      background: isTotal ? 'transparent' : t === 0 ? '#f1f5f9' : `rgba(37,99,235,${0.08 + t * 0.82})`,
+      background: isTotal ? 'transparent' : t === 0 ? 'var(--sd-card3)' : `rgba(37,99,235,${0.08 + t * 0.82})`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
       {value > 0 && (
-        <span style={{ fontSize: 8, fontWeight: 600, lineHeight: 1, color: isTotal ? T.MUTED : t > 0.55 ? '#fff' : '#475569', pointerEvents: 'none' }}>
+        <span style={{ fontSize: 8, fontWeight: 600, lineHeight: 1, color: isTotal ? T.MUTED : t > 0.55 ? '#fff' : 'var(--sd-muted)', pointerEvents: 'none' }}>
           {Math.round(value)}
         </span>
       )}
@@ -1216,8 +1226,8 @@ function DeltaBadge({ value, suffix = '%', invert = false }) {
   return (
     <span style={{
       fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 20,
-      background: positive ? '#dcfce7' : '#fef2f2',
-      color: positive ? '#16a34a' : '#dc2626',
+      background: positive ? 'rgba(22,163,74,0.18)' : 'rgba(220,38,38,0.14)',
+      color: positive ? '#4ade80' : '#f87171',
     }}>
       {value >= 0 ? '+' : ''}{value.toFixed(1)}{suffix}
     </span>
@@ -1325,6 +1335,8 @@ export default function Dashboard() {
   const compareFileRef = useRef()
   const fileCacheRef = useRef({})
   const rawCsvRef = useRef(null)
+  const autoSaveRef = useRef(null)
+  const [autoSaveStatus, setAutoSaveStatus] = useState(null)
 
   const monthRange = selectedMonth ? { start: selectedMonth + '-01', end: selectedMonth + '-31' } : null
   const effectiveRange = dateRange || monthRange
@@ -1500,10 +1512,12 @@ export default function Dashboard() {
           outlet: rawData?.meta?.outlet || '',
           period: rawData?.meta?.period || '',
           totalTx: rawData?.meta?.totalTx || null,
+          revenue: data?.totalRevenue ? Math.round(data.totalRevenue) : null,
         }),
       })
       if (res.ok) {
         setSaveStatus('saved')
+        localStorage.setItem('storedash-pin', saveKey)
         const newEntry = { key: 'file-' + (fileName || 'report').replace(/\.csv$/i, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 60), filename: fileName, outlet: rawData?.meta?.outlet, period: rawData?.meta?.period, totalTx: rawData?.meta?.totalTx, savedAt: new Date().toISOString() }
         setCloudFiles(prev => [newEntry, ...prev.filter(f => f.key !== newEntry.key)])
         setTimeout(() => { setShowSaveDialog(false); setSaveStatus(null); setSaveKey('') }, 1800)
@@ -1524,6 +1538,7 @@ export default function Dashboard() {
     reader.readAsText(file)
     parseFile(file, parsed => {
       fileCacheRef.current[file.name] = parsed
+      autoSaveRef.current = file.name
       setRawData(parsed); setParsing(false)
       const entry = {
         filename: file.name,
@@ -1540,6 +1555,52 @@ export default function Dashboard() {
       })
     }, err => { setParsing(false); setError(err) })
   }, [])
+
+  // Auto-save to cloud on upload — needs PIN remembered from a previous manual save.
+  // Always saves QBM-filtered revenue; skips silently when cloud already has the same amount.
+  useEffect(() => {
+    if (!rawData || !autoSaveRef.current || autoSaveRef.current !== fileName) return
+    autoSaveRef.current = null
+    const pin = localStorage.getItem('storedash-pin')
+    if (!pin) return
+
+    const timer = setTimeout(() => {
+      if (!rawCsvRef.current) return
+      const qbmData = processData(rawData.rows, rawData.meta, null, 'QBM')
+      const d = qbmData.totalRevenue > 0 ? qbmData : processData(rawData.rows, rawData.meta, null, null)
+      const revenue = Math.round(d.totalRevenue)
+
+      const slugKey = 'file-' + (fileName || 'report').replace(/\.csv$/i, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 60)
+      const existing = cloudFiles.find(f => f.key === slugKey)
+      if (existing && existing.revenue === revenue) return // same amount — skip
+
+      setAutoSaveStatus('saving')
+      fetch('/.netlify/functions/storedash-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csvText: rawCsvRef.current,
+          key: pin,
+          filename: fileName,
+          outlet: rawData?.meta?.outlet || '',
+          period: rawData?.meta?.period || '',
+          totalTx: rawData?.meta?.totalTx || null,
+          revenue,
+        }),
+      }).then(res => {
+        if (res.ok) {
+          setAutoSaveStatus('saved')
+          const newEntry = { key: slugKey, filename: fileName, outlet: rawData?.meta?.outlet, period: rawData?.meta?.period, totalTx: rawData?.meta?.totalTx, revenue, savedAt: new Date().toISOString() }
+          setCloudFiles(prev => [newEntry, ...prev.filter(f => f.key !== slugKey)])
+        } else {
+          if (res.status === 401) localStorage.removeItem('storedash-pin')
+          setAutoSaveStatus(null)
+        }
+        setTimeout(() => setAutoSaveStatus(null), 3000)
+      }).catch(() => setAutoSaveStatus(null))
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [rawData, fileName, cloudFiles])
 
   const handleCompareFile = useCallback(file => {
     if (!file) return
@@ -1743,7 +1804,7 @@ export default function Dashboard() {
             <p style={{ color: '#e6a014', fontSize: 10, fontWeight: 800, letterSpacing: '0.35em', textTransform: 'uppercase', margin: '0 0 20px' }}>DJI QUEENSBAY MALL</p>
             <div style={{ fontSize: 56, marginBottom: 16, lineHeight: 1 }}>🛸</div>
             <h1 style={{ color: '#fff', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 6px', lineHeight: 1.1 }}>StoreDash</h1>
-            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: '0 0 40px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>Operator Hub · Sales Analytics</p>
+            <p style={{ color: 'var(--sd-w4)', fontSize: 12, margin: '0 0 40px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>Operator Hub · Sales Analytics</p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
               {[0, 1, 2].map(i => (
                 <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: '#3b82f6', animation: `splashDot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
@@ -1764,10 +1825,10 @@ export default function Dashboard() {
           <div style={{ textAlign: 'center', padding: '0 2rem', position: 'relative' }}>
             <div style={{ fontSize: 52, marginBottom: 20 }}>📡</div>
             <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 800, margin: '0 0 10px', letterSpacing: '-0.02em' }}>You are offline</h2>
-            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, margin: '0 0 32px', lineHeight: 1.6 }}>Connect to the internet to access StoreDash.<br />This page will reload automatically when you're back online.</p>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '10px 20px' }}>
+            <p style={{ color: 'var(--sd-w45)', fontSize: 14, margin: '0 0 32px', lineHeight: 1.6 }}>Connect to the internet to access StoreDash.<br />This page will reload automatically when you're back online.</p>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--sd-w06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '10px 20px' }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }} />
-              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em' }}>NO CONNECTION</span>
+              <span style={{ color: 'var(--sd-w5)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em' }}>NO CONNECTION</span>
             </div>
           </div>
         </div>
@@ -1782,7 +1843,7 @@ export default function Dashboard() {
         }}>
           <div style={{ width: 48, height: 48, border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#60a5fa', borderRadius: '50%', animation: 'splashSpin 0.75s linear infinite' }} />
           <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>{cloudLoading ? 'Loading from cloud…' : 'Analysing your data…'}</p>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>This only takes a moment</p>
+          <p style={{ color: 'var(--sd-w5)', fontSize: 12, margin: 0 }}>This only takes a moment</p>
         </div>
       )}
 
@@ -1794,7 +1855,7 @@ export default function Dashboard() {
         padding: '0 1rem', height: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
         flexWrap: 'nowrap', overflow: 'hidden',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+        boxShadow: '0 1px 4px rgba(255,255,255,0.07)',
       }}>
         {/* Left: back link + brand / home */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -1812,7 +1873,7 @@ export default function Dashboard() {
             title={data ? 'Go to Home' : ''}
           >
             <div style={{ width: 30, height: 30, borderRadius: 8, background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>📊</div>
-            <span style={{ fontWeight: 800, fontSize: 15, color: BLUE, letterSpacing: '-0.01em' }}>StoreDash</span>
+            <span style={{ fontWeight: 800, fontSize: 15, color: '#60a5fa', letterSpacing: '-0.01em' }}>StoreDash</span>
             {data && <span style={{ fontSize: 10, color: T.MUTED, marginLeft: -2 }}>⌂</span>}
           </div>
         </div>
@@ -1820,9 +1881,9 @@ export default function Dashboard() {
         {/* Center: store context — hidden on mobile to save space */}
         {data && !isMobile && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', border: `1px solid #bfdbfe`, borderRadius: 20, padding: '4px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(37,99,235,0.14)', border: `1px solid rgba(37,99,235,0.40)`, borderRadius: 20, padding: '4px 12px' }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: BLUE, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: BLUE, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 220 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#60a5fa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 220 }}>
                 {data.availableOutlets?.length > 1
                   ? (outletFilter ? outletLabel(outletFilter) : 'All Outlets')
                   : (outletLabel(data.meta?.outlet) || fileName)}
@@ -1831,9 +1892,9 @@ export default function Dashboard() {
             {compareData && (
               <>
                 <span style={{ fontSize: 11, color: T.MUTED }}>vs</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f5f3ff', border: `1px solid #ddd6fe`, borderRadius: 20, padding: '4px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(124,58,237,0.14)', border: `1px solid rgba(124,58,237,0.40)`, borderRadius: 20, padding: '4px 12px' }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: STORE_B_COLOR, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: STORE_B_COLOR, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 220 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#a78bfa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 220 }}>
                     {outletLabel(compareData.meta?.outlet) || compareFileName}
                   </span>
                 </div>
@@ -1848,7 +1909,7 @@ export default function Dashboard() {
             <>
               {/* Month selector — desktop only (mobile gets sub-bar) */}
               {!isMobile && data.availableMonths?.length > 1 && (
-                <div style={{ display: 'flex', gap: 3, background: '#e5e7eb', borderRadius: 8, padding: 2 }}>
+                <div style={{ display: 'flex', gap: 3, background: 'rgba(0,0,0,0.30)', borderRadius: 8, padding: 2 }}>
                   <button
                     onClick={() => { setSelectedMonth(null); setDateRange(null) }}
                     style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
@@ -1881,8 +1942,8 @@ export default function Dashboard() {
                   style={{
                     fontSize: 12, padding: '5px 10px', borderRadius: 20, cursor: 'pointer',
                     border: `1.5px solid ${outletFilter ? BLUE : T.BORDER_STRONG}`,
-                    background: outletFilter ? '#eff6ff' : T.CARD,
-                    color: outletFilter ? BLUE : T.TEXT,
+                    background: outletFilter ? 'rgba(37,99,235,0.14)' : T.CARD,
+                    color: outletFilter ? '#60a5fa' : T.TEXT,
                     fontWeight: outletFilter ? 700 : 400,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                     maxWidth: 180, appearance: 'none',
@@ -1903,8 +1964,8 @@ export default function Dashboard() {
                 style={{
                   fontSize: 12, padding: '5px 10px', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap',
                   border: `1px solid ${dateRange ? BLUE : T.BORDER_STRONG}`,
-                  background: dateRange ? '#eff6ff' : T.CARD,
-                  color: dateRange ? BLUE : T.TEXT,
+                  background: dateRange ? 'rgba(37,99,235,0.14)' : T.CARD,
+                  color: dateRange ? '#60a5fa' : T.TEXT,
                   fontWeight: dateRange ? 600 : 400,
                   boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                   display: 'flex', alignItems: 'center', gap: 4,
@@ -1927,7 +1988,7 @@ export default function Dashboard() {
                 <>
                   <input ref={compareFileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => handleCompareFile(e.target.files[0])} />
                   <button onClick={() => compareFileRef.current.click()}
-                    style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: `1px solid ${STORE_B_COLOR}`, background: '#f5f3ff', color: STORE_B_COLOR, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: `1px solid ${STORE_B_COLOR}`, background: 'rgba(124,58,237,0.14)', color: '#a78bfa', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
                     + Compare
                   </button>
                 </>
@@ -1956,7 +2017,7 @@ export default function Dashboard() {
           {data && !isMobile && (
             <button onClick={() => { setShowSaveDialog(true); setSaveStatus(null); setSaveKey('') }}
               title="Save current data to cloud so team can load it on any device"
-              style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: `1px solid #bfdbfe`, background: '#eff6ff', color: BLUE, cursor: 'pointer', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', whiteSpace: 'nowrap' }}>
+              style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: `1px solid rgba(37,99,235,0.40)`, background: 'rgba(37,99,235,0.14)', color: '#60a5fa', cursor: 'pointer', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', whiteSpace: 'nowrap' }}>
               ☁️ Save
             </button>
           )}
@@ -1987,7 +2048,7 @@ export default function Dashboard() {
           msOverflowStyle: 'none', scrollbarWidth: 'none',
         }}>
           {data.availableMonths?.length > 1 && (
-            <div style={{ display: 'flex', gap: 3, background: '#e5e7eb', borderRadius: 8, padding: 2, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 3, background: 'rgba(0,0,0,0.30)', borderRadius: 8, padding: 2, flexShrink: 0 }}>
               <button
                 onClick={() => { setSelectedMonth(null); setDateRange(null) }}
                 style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
@@ -2018,8 +2079,8 @@ export default function Dashboard() {
               style={{
                 fontSize: 12, padding: '4px 8px', borderRadius: 20, cursor: 'pointer', flexShrink: 0,
                 border: `1.5px solid ${outletFilter ? BLUE : T.BORDER_STRONG}`,
-                background: outletFilter ? '#eff6ff' : T.CARD,
-                color: outletFilter ? BLUE : T.TEXT,
+                background: outletFilter ? 'rgba(37,99,235,0.14)' : T.CARD,
+                color: outletFilter ? '#60a5fa' : T.TEXT,
                 fontWeight: outletFilter ? 700 : 400,
                 maxWidth: 160, appearance: 'none',
                 paddingRight: 22, backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E")`,
@@ -2044,13 +2105,13 @@ export default function Dashboard() {
       {showMenu && (
         <>
           <div onClick={() => setShowMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.45)', animation: 'fadeIn 0.2s ease-out' }} />
-          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: isMobile ? 'min(88vw, 300px)' : 280, zIndex: 401, background: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 32px rgba(0,0,0,0.18)', animation: 'slideInRight 0.22s cubic-bezier(0.22,1,0.36,1)' }}>
-            <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: isMobile ? 'min(88vw, 300px)' : 280, zIndex: 401, background: 'var(--sd-card2)', display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 32px rgba(0,0,0,0.18)', animation: 'slideInRight 0.22s cubic-bezier(0.22,1,0.36,1)' }}>
+            <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <p style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', margin: 0 }}>Jump to section</p>
-                <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>Tap to scroll</p>
+                <p style={{ fontWeight: 800, fontSize: 14, color: 'var(--sd-text)', margin: 0 }}>Jump to section</p>
+                <p style={{ fontSize: 11, color: 'var(--sd-muted)', margin: '2px 0 0' }}>Tap to scroll</p>
               </div>
-              <button onClick={() => setShowMenu(false)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e5e7eb', background: '#f8fafc', color: '#64748b', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button onClick={() => setShowMenu(false)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'var(--sd-card3)', color: '#64748b', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
             <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0 24px' }}>
               {[
@@ -2069,11 +2130,11 @@ export default function Dashboard() {
                   setShowMenu(false)
                   setTimeout(() => document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
                 }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '13px 20px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--sd-card3)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                   <span style={{ fontSize: 18, flexShrink: 0, width: 26, textAlign: 'center' }}>{s.icon}</span>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--sd-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
                 </button>
               ))}
             </div>
@@ -2095,7 +2156,7 @@ export default function Dashboard() {
       {showSaveDialog && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => { if (e.target === e.currentTarget) { setShowSaveDialog(false); setSaveStatus(null); setSaveKey('') } }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: '1.75rem', width: '100%', maxWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: 'var(--sd-card2)', borderRadius: 16, padding: '1.75rem', width: '100%', maxWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <p style={{ fontWeight: 700, fontSize: 16, margin: '0 0 6px', color: T.TEXT }}>☁️ Save to Cloud</p>
             <p style={{ fontSize: 13, color: T.MUTED, margin: '0 0 1.25rem' }}>Anyone on the team can load this data on their phone without re-uploading.</p>
             <label style={{ fontSize: 12, fontWeight: 600, color: T.TEXT, display: 'block', marginBottom: 6 }}>Save PIN</label>
@@ -2125,6 +2186,13 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Auto-save toast */}
+      {autoSaveStatus && (
+        <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: autoSaveStatus === 'saved' ? GREEN : T.CARD, color: autoSaveStatus === 'saved' ? '#fff' : T.MUTED, border: `1px solid ${autoSaveStatus === 'saved' ? GREEN : T.BORDER_STRONG}`, borderRadius: 20, padding: '8px 18px', fontSize: 12, fontWeight: 600, boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}>
+          {autoSaveStatus === 'saving' ? '☁️ Auto-saving to cloud…' : '✓ Auto-saved — homepage updated'}
+        </div>
+      )}
+
       <div style={{ maxWidth: 1140, margin: '0 auto', padding: isMobile ? '1rem 0.75rem' : '2rem 1.5rem' }}>
 
         {/* Upload */}
@@ -2144,7 +2212,7 @@ export default function Dashboard() {
               style={{
                 border: `2px dashed ${dragging ? BLUE : T.BORDER_STRONG}`,
                 borderRadius: 16, padding: '3rem 2rem', textAlign: 'center', cursor: 'pointer',
-                background: dragging ? '#eff6ff' : T.CARD,
+                background: dragging ? 'rgba(37,99,235,0.14)' : T.CARD,
                 transition: 'all 0.2s', marginBottom: '1rem',
                 boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
               }}
@@ -2154,16 +2222,16 @@ export default function Dashboard() {
               <p style={{ fontWeight: 600, fontSize: 16, margin: '0 0 4px', color: T.TEXT }}>Drop your CSV file here</p>
               <p style={{ color: T.MUTED, fontSize: 13, margin: '0 0 1.25rem' }}>or click to browse</p>
               <button onClick={e => { e.stopPropagation(); loadDemo() }}
-                style={{ padding: '9px 22px', borderRadius: 9, cursor: 'pointer', fontSize: 13, border: `1px solid ${BLUE}`, background: '#eff6ff', color: BLUE, fontWeight: 600 }}>
+                style={{ padding: '9px 22px', borderRadius: 9, cursor: 'pointer', fontSize: 13, border: `1px solid ${BLUE}`, background: 'rgba(37,99,235,0.14)', color: '#60a5fa', fontWeight: 600 }}>
                 ✨ Try with demo data
               </button>
             </div>
 
             {/* Cloud files card — always visible */}
-            <div className="sd-home" style={{ background: T.CARD, border: `1px solid ${cloudFiles.length ? '#bfdbfe' : T.BORDER}`, borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div className="sd-home" style={{ background: T.CARD, border: `1px solid ${cloudFiles.length ? 'rgba(37,99,235,0.40)' : T.BORDER}`, borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: cloudFiles.length ? 10 : 0 }}>
                 <span style={{ fontSize: 18 }}>☁️</span>
-                <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: cloudFiles.length ? '#1d4ed8' : T.TEXT }}>
+                <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: cloudFiles.length ? '#60a5fa' : T.TEXT }}>
                   {cloudFiles.length ? `Cloud files (${cloudFiles.length})` : 'No cloud files yet'}
                 </p>
               </div>
@@ -2181,10 +2249,10 @@ export default function Dashboard() {
                       return `${Math.floor(diff / 86400)}d ago`
                     })()
                     return (
-                      <div key={f.key} className="sd-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: '#eff6ff', borderRadius: 8, border: '1px solid #dbeafe', animationDelay: `${i * 50}ms` }}>
+                      <div key={f.key} className="sd-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'rgba(37,99,235,0.14)', borderRadius: 8, border: '1px solid rgba(37,99,235,0.35)', animationDelay: `${i * 50}ms` }}>
                         <span style={{ fontSize: 14 }}>📂</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: '#60a5fa', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {f.outlet ? outletLabel(f.outlet) : f.filename}
                           </p>
                           <p style={{ fontSize: 11, color: '#3b82f6', margin: 0 }}>
@@ -2203,7 +2271,7 @@ export default function Dashboard() {
                             body: JSON.stringify({ key: f.key }),
                           })
                           setCloudFiles(prev => prev.filter(x => x.key !== f.key))
-                        }} style={{ padding: '5px 8px', borderRadius: 7, border: '1px solid #dbeafe', background: 'transparent', color: '#93c5fd', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>
+                        }} style={{ padding: '5px 8px', borderRadius: 7, border: '1px solid rgba(37,99,235,0.35)', background: 'transparent', color: '#93c5fd', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>
                           ✕
                         </button>
                       </div>
@@ -2215,10 +2283,10 @@ export default function Dashboard() {
 
             {/* Saved AI Analyses */}
             {savedAnalyses.length > 0 && (
-              <div className="sd-home" style={{ background: T.CARD, border: '1px solid #e0e7ff', borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div className="sd-home" style={{ background: T.CARD, border: '1px solid rgba(99,102,241,0.28)', borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <span style={{ fontSize: 16 }}>✨</span>
-                  <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: '#4f46e5' }}>Saved Analyses ({savedAnalyses.length})</p>
+                  <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: '#818cf8' }}>Saved Analyses ({savedAnalyses.length})</p>
                 </div>
                 <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5, paddingRight: 2 }}>
                   {savedAnalyses.map((a, i) => {
@@ -2231,20 +2299,20 @@ export default function Dashboard() {
                     })()
                     const isActive = a.fingerprint === aiFingerprint
                     return (
-                      <div key={a.fingerprint} className="sd-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: isActive ? '#eef2ff' : '#f8f9ff', borderRadius: 8, border: `1px solid ${isActive ? '#c7d2fe' : '#e0e7ff'}`, animationDelay: `${i * 50}ms` }}>
+                      <div key={a.fingerprint} className="sd-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: isActive ? 'rgba(99,102,241,0.16)' : 'rgba(99,102,241,0.08)', borderRadius: 8, border: `1px solid ${isActive ? 'rgba(99,102,241,0.45)' : 'rgba(99,102,241,0.28)'}`, animationDelay: `${i * 50}ms` }}>
                         <span style={{ fontSize: 13 }}>🧠</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#4338ca' : '#374151', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#a5b4fc' : 'var(--sd-text2)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {outletLabel(a.outlet) || a.outlet}
-                            {isActive && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: '#4f46e5', background: '#e0e7ff', borderRadius: 4, padding: '1px 5px' }}>Current</span>}
+                            {isActive && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: '#818cf8', background: 'rgba(99,102,241,0.28)', borderRadius: 4, padding: '1px 5px' }}>Current</span>}
                           </p>
-                          <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
+                          <p style={{ fontSize: 11, color: 'var(--sd-muted)', margin: 0 }}>
                             {a.period && <span>{formatPeriodMeta(a.period)} · </span>}
                             RM {(a.revenue || 0).toLocaleString('en-MY', { maximumFractionDigits: 0 })} · {ago}
                           </p>
                         </div>
                         <button onClick={() => deleteAnalysis(a.fingerprint)}
-                          style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #e0e7ff', background: 'transparent', color: '#a5b4fc', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>
+                          style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid rgba(99,102,241,0.28)', background: 'transparent', color: '#a5b4fc', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>
                           ✕
                         </button>
                       </div>
@@ -2255,12 +2323,12 @@ export default function Dashboard() {
             )}
 
             {/* Kassie export tip */}
-            <div className="sd-home" style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 16px', marginBottom: '1rem', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <div className="sd-home" style={{ background: 'rgba(217,119,6,0.10)', border: '1px solid rgba(217,119,6,0.35)', borderRadius: 12, padding: '12px 16px', marginBottom: '1rem', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>💡</span>
               <div>
-                <p style={{ fontWeight: 600, fontSize: 13, color: '#92400e', margin: '0 0 4px' }}>Kassie Export Tip — to match Branch/Outlet Net Sales</p>
-                <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 4px' }}>Go to <strong>Customer Report → Customer Purchase Listing</strong>, then:</p>
-                <p style={{ fontSize: 12, color: '#78350f', margin: 0 }}>
+                <p style={{ fontWeight: 600, fontSize: 13, color: '#fbbf24', margin: '0 0 4px' }}>Kassie Export Tip — to match Branch/Outlet Net Sales</p>
+                <p style={{ fontSize: 12, color: '#fcd34d', margin: '0 0 4px' }}>Go to <strong>Customer Report → Customer Purchase Listing</strong>, then:</p>
+                <p style={{ fontSize: 12, color: '#fcd34d', margin: 0 }}>
                   ☑ Uncheck <strong>"Display invoices with registered Customer Only"</strong> — this includes walk-in sales that are missing otherwise
                 </p>
               </div>
@@ -2297,7 +2365,7 @@ export default function Dashboard() {
                           }
                         }}
                         className="sd-row" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: T.BG, borderRadius: 8, border: `1px solid ${T.BORDER}`, cursor: 'pointer', transition: 'background 0.15s', animationDelay: `${i * 50}ms` }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(37,99,235,0.10)'}
                         onMouseLeave={e => e.currentTarget.style.background = T.BG}
                       >
                         <span style={{ fontSize: 16 }}>{cached ? '📂' : '📄'}</span>
@@ -2327,7 +2395,7 @@ export default function Dashboard() {
               <p style={{ fontSize: 12, color: T.MUTED, margin: '0 0 12px' }}>Auto-detected — just drop the file</p>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ background: T.BG, border: `1px solid ${T.BORDER}`, borderRadius: 8, padding: '10px 12px', flex: 1 }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: BLUE, margin: '0 0 4px' }}>POS Report (CustomerPurchaseListing)</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#60a5fa', margin: '0 0 4px' }}>POS Report (CustomerPurchaseListing)</p>
                   <p style={{ fontSize: 11, color: T.MUTED, margin: 0 }}>Your Kassie export — metadata rows auto-skipped</p>
                 </div>
                 <div style={{ background: T.BG, border: `1px solid ${T.BORDER}`, borderRadius: 8, padding: '10px 12px', flex: 1 }}>
@@ -2340,7 +2408,7 @@ export default function Dashboard() {
         )}
 
         {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '0.75rem 1rem', color: '#dc2626', fontSize: 13, marginTop: 12 }}>
+          <div style={{ background: 'rgba(220,38,38,0.14)', border: '1px solid #fca5a5', borderRadius: 10, padding: '0.75rem 1rem', color: '#f87171', fontSize: 13, marginTop: 12 }}>
             ⚠️ {error}
           </div>
         )}
@@ -2355,7 +2423,7 @@ export default function Dashboard() {
                 {data.meta.generated && <span style={{ fontSize: 12, color: T.MUTED }}>🕐 Generated: {data.meta.generated}</span>}
                 {data.meta.totalTx && <span style={{ fontSize: 12, color: T.MUTED }}>🧾 {data.meta.totalTx} transactions</span>}
                 {data.meta.kassieTotal != null && !dateRange && (
-                  <span style={{ fontSize: 12, color: Math.abs(data.totalRevenue - data.meta.kassieTotal) < 1 ? '#059669' : '#d97706', fontWeight: 600 }}>
+                  <span style={{ fontSize: 12, color: Math.abs(data.totalRevenue - data.meta.kassieTotal) < 1 ? '#34d399' : '#fbbf24', fontWeight: 600 }}>
                     {Math.abs(data.totalRevenue - data.meta.kassieTotal) < 1
                       ? `✓ Kassie total matches: ${fmtMYR(data.meta.kassieTotal)}`
                       : `⚠ Kassie declares ${fmtMYR(data.meta.kassieTotal)} · StoreDash shows ${fmtMYR(data.totalRevenue)}`}
@@ -2398,10 +2466,10 @@ export default function Dashboard() {
                         </div>
                         {/* Visual bar comparison */}
                         <div style={{ marginTop: 10 }}>
-                          <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5, marginBottom: 4 }}>
+                          <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 4, height: 5, marginBottom: 4 }}>
                             <div style={{ background: BLUE, height: '100%', borderRadius: 4, width: `${Math.min(100, a / Math.max(a, b) * 100)}%` }} />
                           </div>
-                          <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5 }}>
+                          <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 4, height: 5 }}>
                             <div style={{ background: STORE_B_COLOR, height: '100%', borderRadius: 4, width: `${Math.min(100, b / Math.max(a, b) * 100)}%` }} />
                           </div>
                         </div>
@@ -2413,7 +2481,7 @@ export default function Dashboard() {
                 {/* Revenue overlay trend */}
                 <Card title="Revenue trend — store comparison" style={{ marginBottom: 12 }}>
                   <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
-                    {[{ color: BLUE, name: nameA }, { color: STORE_B_COLOR, name: nameB }].map(s => (
+                    {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
                       <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.MUTED }}>
                         <div style={{ width: 20, height: 3, borderRadius: 2, background: s.color }} />
                         {s.name}
@@ -2445,7 +2513,7 @@ export default function Dashboard() {
                     </BarChart>
                   </ResponsiveContainer>
                   <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-                    {[{ color: BLUE, name: nameA }, { color: STORE_B_COLOR, name: nameB }].map(s => (
+                    {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
                       <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.MUTED }}>
                         <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color }} />
                         {s.name}
@@ -2457,7 +2525,7 @@ export default function Dashboard() {
                 {/* Month-over-month comparison */}
                 <Card title="Monthly revenue — month-over-month comparison" style={{ marginTop: 12 }}>
                   <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
-                    {[{ color: BLUE, name: nameA, mom: data.momChange }, { color: STORE_B_COLOR, name: nameB, mom: compareData.momChange }].map(s => (
+                    {[{ color: '#60a5fa', name: nameA, mom: data.momChange }, { color: '#a78bfa', name: nameB, mom: compareData.momChange }].map(s => (
                       <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
                         <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color }} />
                         <span style={{ color: T.MUTED }}>{s.name}</span>
@@ -2481,7 +2549,7 @@ export default function Dashboard() {
                 {/* Top products comparison */}
                 <Card title="Top products — comparison" style={{ marginTop: 12 }}>
                   <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
-                    {[{ color: BLUE, name: nameA }, { color: STORE_B_COLOR, name: nameB }].map(s => (
+                    {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
                       <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.MUTED }}>
                         <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color }} />
                         {s.name}
@@ -2496,15 +2564,15 @@ export default function Dashboard() {
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                             <span style={{ fontSize: 12, color: T.TEXT, maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                             <div style={{ display: 'flex', gap: 12 }}>
-                              <span style={{ fontSize: 11, color: BLUE, fontWeight: 600 }}>{p.storeA > 0 ? fmtMYR(p.storeA) : '—'}</span>
-                              <span style={{ fontSize: 11, color: STORE_B_COLOR, fontWeight: 600 }}>{p.storeB > 0 ? fmtMYR(p.storeB) : '—'}</span>
+                              <span style={{ fontSize: 11, color: '#60a5fa', fontWeight: 600 }}>{p.storeA > 0 ? fmtMYR(p.storeA) : '—'}</span>
+                              <span style={{ fontSize: 11, color: '#a78bfa', fontWeight: 600 }}>{p.storeB > 0 ? fmtMYR(p.storeB) : '—'}</span>
                             </div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <div style={{ background: '#e5e7eb', borderRadius: 3, height: 5 }}>
+                            <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 3, height: 5 }}>
                               <div style={{ background: BLUE, height: '100%', borderRadius: 3, width: `${Math.round(p.storeA / maxVal * 100)}%` }} />
                             </div>
-                            <div style={{ background: '#e5e7eb', borderRadius: 3, height: 5 }}>
+                            <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 3, height: 5 }}>
                               <div style={{ background: STORE_B_COLOR, height: '100%', borderRadius: 3, width: `${Math.round(p.storeB / maxVal * 100)}%` }} />
                             </div>
                           </div>
@@ -2524,7 +2592,7 @@ export default function Dashboard() {
                 onDrop={e => { e.preventDefault(); setDraggingB(false); handleCompareFile(e.dataTransfer.files[0]) }}
                 onClick={() => compareFileRef.current.click()}
                 style={{
-                  background: draggingB ? '#ede9fe' : '#f5f3ff',
+                  background: draggingB ? 'rgba(124,58,237,0.24)' : 'rgba(124,58,237,0.14)',
                   border: `2px dashed ${draggingB ? STORE_B_COLOR : 'rgba(124,58,237,0.4)'}`,
                   borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '0.5rem',
                   display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between',
@@ -2533,7 +2601,7 @@ export default function Dashboard() {
                 }}
               >
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: STORE_B_COLOR, margin: '0 0 2px' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa', margin: '0 0 2px' }}>
                     {draggingB ? '📂 Drop Store B CSV here' : 'Compare with another store'}
                   </p>
                   <p style={{ fontSize: 12, color: T.MUTED, margin: 0 }}>
@@ -2543,7 +2611,7 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
                   <input ref={compareFileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => handleCompareFile(e.target.files[0])} />
                   <button onClick={loadDemoCompare}
-                    style={{ fontSize: 12, padding: '7px 14px', borderRadius: 8, border: `1px solid ${STORE_B_COLOR}`, background: 'transparent', color: STORE_B_COLOR, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    style={{ fontSize: 12, padding: '7px 14px', borderRadius: 8, border: `1px solid ${STORE_B_COLOR}`, background: 'transparent', color: '#a78bfa', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                     Try demo comparison
                   </button>
                   <button onClick={() => compareFileRef.current.click()}
@@ -2573,7 +2641,7 @@ export default function Dashboard() {
                     <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: '#fff', lineHeight: 1.25, marginBottom: 10 }}>
                       Deep analysis + Malaysia<br />market comparison
                     </div>
-                    <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65, maxWidth: 380 }}>
+                    <div style={{ fontSize: 12.5, color: 'var(--sd-w5)', lineHeight: 1.65, maxWidth: 380 }}>
                       Hot products · strengths · action items · benchmarked against other DJI outlets across Malaysia.
                     </div>
                     {savedAnalyses.some(a => a.fingerprint === aiFingerprint) && (
@@ -2599,7 +2667,7 @@ export default function Dashboard() {
                       whiteSpace: 'nowrap',
                     }}>✨ Generate Analysis</button>
                     {isDemo && (
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', textAlign: 'center', maxWidth: 160, lineHeight: 1.4 }}>
+                      <div style={{ fontSize: 11, color: 'var(--sd-w45)', textAlign: 'center', maxWidth: 160, lineHeight: 1.4 }}>
                         Not available for demo data — upload your own CSV to use AI Analysis
                       </div>
                     )}
@@ -2618,8 +2686,8 @@ export default function Dashboard() {
                     <div style={{ position: 'absolute', inset: 0, border: '3px solid rgba(99,102,241,0.2)', borderTopColor: '#818cf8', borderRadius: '50%', animation: 'splashSpin 0.8s linear infinite' }} />
                     <div style={{ position: 'absolute', inset: 6, border: '2px solid rgba(37,99,235,0.2)', borderTopColor: '#60a5fa', borderRadius: '50%', animation: 'splashSpin 1.2s linear infinite reverse' }} />
                   </div>
-                  <div style={{ fontSize: 14, color: '#e2e8f0', fontWeight: 700 }}>Analysing your store…</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>Comparing against DJI Malaysia market benchmarks</div>
+                  <div style={{ fontSize: 14, color: 'var(--sd-w12)', fontWeight: 700 }}>Analysing your store…</div>
+                  <div style={{ fontSize: 12, color: 'var(--sd-w35)', textAlign: 'center' }}>Comparing against DJI Malaysia market benchmarks</div>
                 </div>
               )}
 
@@ -2641,17 +2709,17 @@ export default function Dashboard() {
                             <div style={{ fontSize: 10, fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>✦ Summary</div>
                             {aiCached && <span style={{ fontSize: 10, fontWeight: 700, color: '#6ee7b7', background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 4, padding: '1px 6px' }}>✓ Saved</span>}
                           </div>
-                          <div style={{ fontSize: 13.5, color: '#e2e8f0', lineHeight: 1.7, maxWidth: 640 }}>{aiResult.summary}</div>
+                          <div style={{ fontSize: 13.5, color: 'var(--sd-w12)', lineHeight: 1.7, maxWidth: 640 }}>{aiResult.summary}</div>
                         </div>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                           {aiCached && (
                             <button onClick={() => { setAiResult(null); setAiCached(false); setTimeout(runAIAnalysis, 50) }}
-                              style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              style={{ fontSize: 11, color: 'var(--sd-w4)', background: 'var(--sd-w06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                               ↺ Refresh
                             </button>
                           )}
                           <button onClick={() => { setAiResult(null); setAiError(null); setAiCached(false) }}
-                            style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            style={{ fontSize: 11, color: 'var(--sd-w35)', background: 'var(--sd-w06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                             ✕
                           </button>
                           {aiFingerprint && (
@@ -2681,9 +2749,9 @@ export default function Dashboard() {
                           ].map(({ label, value }) => {
                             const isGood = /top|above|excellent|good/i.test(value)
                             const isBad = /below|needs/i.test(value)
-                            const bg = isGood ? '#f0fdf4' : isBad ? '#fef2f2' : '#f8fafc'
-                            const border = isGood ? '#bbf7d0' : isBad ? '#fca5a5' : T.BORDER
-                            const color = isGood ? '#166534' : isBad ? '#dc2626' : T.MUTED
+                            const bg = isGood ? 'rgba(22,163,74,0.10)' : isBad ? 'rgba(220,38,38,0.14)' : 'var(--sd-card3)'
+                            const border = isGood ? 'rgba(74,222,128,0.35)' : isBad ? '#fca5a5' : T.BORDER
+                            const color = isGood ? '#166534' : isBad ? '#f87171' : T.MUTED
                             return (
                               <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: '6px 12px' }}>
                                 <div style={{ fontSize: 10, color: T.MUTED, fontWeight: 600, marginBottom: 2 }}>{label}</div>
@@ -2692,7 +2760,7 @@ export default function Dashboard() {
                             )
                           })}
                         </div>
-                        <div style={{ fontSize: 12.5, color: '#374151', lineHeight: 1.65 }}>{aiResult.vsMarket.insight}</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--sd-text2)', lineHeight: 1.65 }}>{aiResult.vsMarket.insight}</div>
                       </div>
                     </div>
                   )}
@@ -2715,7 +2783,7 @@ export default function Dashboard() {
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
                                     <span style={{ fontSize: 13, fontWeight: 700, color: T.TEXT }}>{p.name}</span>
-                                    {p.badge && <span style={{ fontSize: 10, fontWeight: 700, color: '#d97706', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 5, padding: '1px 6px' }}>{p.badge}</span>}
+                                    {p.badge && <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: '#fef3c7', border: '1px solid rgba(217,119,6,0.35)', borderRadius: 5, padding: '1px 6px' }}>{p.badge}</span>}
                                   </div>
                                   <div style={{ fontSize: 11.5, color: T.MUTED, lineHeight: 1.5 }}>{p.insight}</div>
                                 </div>
@@ -2729,20 +2797,20 @@ export default function Dashboard() {
 
                     {/* Strengths */}
                     {aiResult.strengths?.length > 0 && (
-                      <div className="sd-pop" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, overflow: 'hidden', animationDelay: '240ms' }}>
-                        <div style={{ padding: '12px 16px', borderBottom: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className="sd-pop" style={{ background: 'rgba(22,163,74,0.10)', border: '1px solid rgba(74,222,128,0.35)', borderRadius: 14, overflow: 'hidden', animationDelay: '240ms' }}>
+                        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(74,222,128,0.35)', display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 15 }}>💪</span>
                           <span style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>What's Working</span>
                         </div>
                         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                           {aiResult.strengths.map((s, i) => (
                             <div key={i} className="sd-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', animationDelay: `${i * 70}ms` }}>
-                              <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#dcfce7', border: '1.5px solid #86efac', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a' }} />
+                              <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(22,163,74,0.18)', border: '1.5px solid #86efac', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80' }} />
                               </div>
                               <div>
                                 <div style={{ fontSize: 12.5, fontWeight: 700, color: '#15803d', marginBottom: 2 }}>{s.title}</div>
-                                <div style={{ fontSize: 11.5, color: '#374151', lineHeight: 1.5 }}>{s.detail}</div>
+                                <div style={{ fontSize: 11.5, color: 'var(--sd-text2)', lineHeight: 1.5 }}>{s.detail}</div>
                               </div>
                             </div>
                           ))}
@@ -2765,11 +2833,11 @@ export default function Dashboard() {
                           return (
                             <div key={i} className="sd-row" style={{ display: 'flex', gap: 14, padding: '12px 16px', borderBottom: i < aiResult.improvements.length - 1 ? `1px solid ${T.BORDER}` : 'none', alignItems: 'flex-start', animationDelay: `${i * 80}ms` }}>
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0, paddingTop: 2 }}>
-                                <div style={{ width: 22, height: 22, borderRadius: 6, background: isHigh ? '#fef2f2' : '#fff7ed', border: `1.5px solid ${isHigh ? '#fca5a5' : '#fdba74'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: isHigh ? RED : ORANGE }}>{i + 1}</div>
+                                <div style={{ width: 22, height: 22, borderRadius: 6, background: isHigh ? 'rgba(220,38,38,0.14)' : 'rgba(234,88,12,0.10)', border: `1.5px solid ${isHigh ? '#fca5a5' : 'rgba(251,146,60,0.45)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: isHigh ? RED : ORANGE }}>{i + 1}</div>
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: 9.5, fontWeight: 800, color: isHigh ? RED : ORANGE, textTransform: 'uppercase', letterSpacing: '0.08em', background: isHigh ? '#fef2f2' : '#fff7ed', border: `1px solid ${isHigh ? '#fca5a5' : '#fdba74'}`, borderRadius: 4, padding: '1px 5px' }}>{imp.priority}</span>
+                                  <span style={{ fontSize: 9.5, fontWeight: 800, color: isHigh ? RED : ORANGE, textTransform: 'uppercase', letterSpacing: '0.08em', background: isHigh ? 'rgba(220,38,38,0.14)' : 'rgba(234,88,12,0.10)', border: `1px solid ${isHigh ? '#fca5a5' : 'rgba(251,146,60,0.45)'}`, borderRadius: 4, padding: '1px 5px' }}>{imp.priority}</span>
                                   <span style={{ fontSize: 12.5, fontWeight: 700, color: T.TEXT }}>{imp.area}</span>
                                 </div>
                                 <div style={{ fontSize: 12.5, color: '#1e293b', marginBottom: 3 }}>→ {imp.action}</div>
@@ -2818,7 +2886,7 @@ export default function Dashboard() {
                         <span style={{ fontSize: 13, color: T.MUTED }}> / {fmtMYR(monthlyTarget)}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: monthlyTargetPct >= 100 ? GREEN : monthlyTargetPct >= 70 ? BLUE : ORANGE }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: monthlyTargetPct >= 100 ? GREEN : monthlyTargetPct >= 70 ? '#60a5fa' : ORANGE }}>
                           {monthlyTargetPct.toFixed(0)}%
                         </span>
                         <button onClick={() => { setMonthlyTargetInput(String(monthlyTarget)); setEditingMonthlyTarget(true) }}
@@ -2857,8 +2925,8 @@ export default function Dashboard() {
                   {insights.map((ins, i) => (
                     <div key={i} style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px',
-                      background: ins.type === 'positive' ? '#f0fdf4' : ins.type === 'warning' ? '#fff7ed' : T.CARD,
-                      border: `1px solid ${ins.type === 'positive' ? '#bbf7d0' : ins.type === 'warning' ? '#fed7aa' : T.BORDER}`,
+                      background: ins.type === 'positive' ? 'rgba(22,163,74,0.10)' : ins.type === 'warning' ? 'rgba(234,88,12,0.10)' : T.CARD,
+                      border: `1px solid ${ins.type === 'positive' ? 'rgba(74,222,128,0.35)' : ins.type === 'warning' ? 'rgba(251,146,60,0.40)' : T.BORDER}`,
                       borderRadius: 10
                     }}>
                       <span style={{ fontSize: 16, lineHeight: 1.4 }}>{ins.icon}</span>
@@ -2873,7 +2941,7 @@ export default function Dashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: '1.25rem' }}>
               <KPI icon="💰" label="Net revenue" value={fmtMYR(data.totalRevenue)}
                 delta={`${data.growth >= 0 ? '+' : ''}${data.growth.toFixed(1)}% trend`}
-                color={data.growth >= 0 ? '#16a34a' : '#dc2626'} />
+                color={data.growth >= 0 ? '#4ade80' : '#f87171'} />
               <KPI icon="🛒" label="Total sales" value={fmtNum(data.totalOrders)} delta="units sold" />
               <KPI icon="🧾" label="Avg order value" value={fmtMYR(data.aov)} delta="per transaction" />
               <KPI icon="🏷️" label="Total discounts" value={fmtMYR(data.totalDiscount)}
@@ -2886,7 +2954,7 @@ export default function Dashboard() {
             <Card title={compareData ? `Revenue trend — ${nameA} vs ${nameB}` : 'Revenue trend'}>
               {compareData && (
                 <div style={{ display: 'flex', gap: 16, marginBottom: 10 }}>
-                  {[{ color: BLUE, name: nameA }, { color: STORE_B_COLOR, name: nameB }].map(s => (
+                  {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
                     <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.MUTED }}>
                       <div style={{ width: 20, height: 3, borderRadius: 2, background: s.color }} />
                       {s.name}
@@ -3007,7 +3075,7 @@ export default function Dashboard() {
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {[
-                          { label: prevLabel || 'Prev month', value: prev, c: '#94a3b8' },
+                          { label: prevLabel || 'Prev month', value: prev, c: 'var(--sd-muted)' },
                           { label: currentLabel || 'This month', value: current, c: color },
                         ].map(({ label, value, c }) => (
                           <div key={label}>
@@ -3015,7 +3083,7 @@ export default function Dashboard() {
                               <span style={{ fontSize: 11, color: T.MUTED }}>{label}</span>
                               <span style={{ fontSize: 11, fontWeight: 600, color: c }}>{fmtMYR(value)}</span>
                             </div>
-                            <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5 }}>
+                            <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 4, height: 5 }}>
                               <div style={{ background: c, height: '100%', borderRadius: 4, width: `${Math.min(100, value / maxVal * 100)}%`, transition: 'width 0.4s' }} />
                             </div>
                           </div>
@@ -3045,7 +3113,7 @@ export default function Dashboard() {
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 10, color: T.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{fmtMonth(compareData.momCurrentLabel) || 'This month'}</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: STORE_B_COLOR, lineHeight: 1 }}>{fmtMYR(compareData.momCurrent)}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: '#a78bfa', lineHeight: 1 }}>{fmtMYR(compareData.momCurrent)}</div>
                       </div>
                       <div style={{ textAlign: 'center', paddingBottom: 4 }}>
                         <div style={{ fontSize: 18, color: arrowColor, lineHeight: 1 }}>{arrow}</div>
@@ -3054,7 +3122,7 @@ export default function Dashboard() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {[
-                        { label: fmtMonth(compareData.momPrevLabel) || 'Prev month', value: compareData.momPrev, c: '#94a3b8' },
+                        { label: fmtMonth(compareData.momPrevLabel) || 'Prev month', value: compareData.momPrev, c: 'var(--sd-muted)' },
                         { label: fmtMonth(compareData.momCurrentLabel) || 'This month', value: compareData.momCurrent, c: STORE_B_COLOR },
                       ].map(({ label, value, c }) => (
                         <div key={label}>
@@ -3062,7 +3130,7 @@ export default function Dashboard() {
                             <span style={{ fontSize: 11, color: T.MUTED }}>{label}</span>
                             <span style={{ fontSize: 11, fontWeight: 600, color: c }}>{fmtMYR(value)}</span>
                           </div>
-                          <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5 }}>
+                          <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 4, height: 5 }}>
                             <div style={{ background: c, height: '100%', borderRadius: 4, width: `${Math.min(100, value / maxVal * 100)}%`, transition: 'width 0.4s' }} />
                           </div>
                         </div>
@@ -3092,7 +3160,7 @@ export default function Dashboard() {
                       <Tooltip {...TS} contentStyle={TT} cursor={TC} separator=": " formatter={v => [fmtMYR(v), 'Revenue']} />
                       <Bar dataKey="revenue" radius={[4,4,0,0]}>
                         {data.monthlyBreakdown.map((m, i) => (
-                          <Cell key={i} fill={m.key === data.momCurrentLabel ? BLUE : '#bfdbfe'} />
+                          <Cell key={i} fill={m.key === data.momCurrentLabel ? BLUE : 'rgba(37,99,235,0.40)'} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -3100,7 +3168,7 @@ export default function Dashboard() {
                 </ResponsiveContainer>
                 {compareData && (
                   <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-                    {[{ color: BLUE, name: nameA }, { color: STORE_B_COLOR, name: nameB }].map(s => (
+                    {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
                       <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.MUTED }}>
                         <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color }} />
                         {s.name}
@@ -3136,7 +3204,7 @@ export default function Dashboard() {
                         formatter={(v, key) => key === 'revenue' ? [fmtMYR(v), 'Revenue'] : [fmtNum(v), 'Units sold']} />
                       <Bar dataKey="revenue" radius={[4,4,0,0]}>
                         {data.productTypes.map((pt, i) => (
-                          <Cell key={i} fill={PTYPE_COLORS[pt.name] || '#94a3b8'} />
+                          <Cell key={i} fill={PTYPE_COLORS[pt.name] || 'var(--sd-muted)'} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -3155,9 +3223,9 @@ export default function Dashboard() {
                     return pt ? (
                       <button key={name} onClick={() => setPtypeModal(name)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: T.MUTED, background: 'none', border: 'none', cursor: 'pointer', padding: '3px 7px', borderRadius: 6, transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--sd-card3)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                        <div style={{ width: 8, height: 8, borderRadius: 2, background: PTYPE_COLORS[name] || '#94a3b8' }} />
+                        <div style={{ width: 8, height: 8, borderRadius: 2, background: PTYPE_COLORS[name] || 'var(--sd-muted)' }} />
                         {name} · {fmtNum(pt.orders)} units · {pct}%
                       </button>
                     ) : null
@@ -3168,13 +3236,13 @@ export default function Dashboard() {
               {/* Product type drill-down modal */}
               {ptypeModal && data.productTypeItems?.[ptypeModal] && (
                 <div onClick={() => setPtypeModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-                  <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 460, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+                  <div onClick={e => e.stopPropagation()} style={{ background: 'var(--sd-card2)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 460, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 12, height: 12, borderRadius: 3, background: PTYPE_COLORS[ptypeModal] || '#94a3b8' }} />
+                        <div style={{ width: 12, height: 12, borderRadius: 3, background: PTYPE_COLORS[ptypeModal] || 'var(--sd-muted)' }} />
                         <span style={{ fontWeight: 700, fontSize: 15, color: T.TEXT }}>{ptypeModal} — breakdown</span>
                       </div>
-                      <button onClick={() => setPtypeModal(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 28, height: 28, cursor: 'pointer', fontSize: 16, color: T.MUTED, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                      <button onClick={() => setPtypeModal(null)} style={{ background: 'var(--sd-card3)', border: 'none', borderRadius: 8, width: 28, height: 28, cursor: 'pointer', fontSize: 16, color: T.MUTED, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                     </div>
                     <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {(() => {
@@ -3187,7 +3255,7 @@ export default function Dashboard() {
                               <span style={{ fontSize: 12, color: T.TEXT, maxWidth: '68%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                               <span style={{ fontSize: 11, color: T.MUTED, flexShrink: 0 }}>{fmtMYR(p.revenue)} · {Math.round(p.revenue / totalRev * 100)}%</span>
                             </div>
-                            <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5 }}>
+                            <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 4, height: 5 }}>
                               <div style={{ background: PTYPE_COLORS[ptypeModal] || BLUE, height: '100%', borderRadius: 4, width: `${Math.round(p.revenue / maxRev * 100)}%` }} />
                             </div>
                           </div>
@@ -3222,7 +3290,7 @@ export default function Dashboard() {
                         <span style={{ fontSize: 11, color: T.TEXT, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                         <span style={{ fontSize: 11, color: T.MUTED, flexShrink: 0, whiteSpace: 'nowrap' }}>{fmtMYR(p.revenue)}</span>
                       </div>
-                      <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5 }}>
+                      <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 4, height: 5 }}>
                         <div style={{ background: COLORS[i % COLORS.length], height: '100%', borderRadius: 4, width: `${activeProducts[0] ? Math.round(p.revenue / activeProducts[0].revenue * 100) : 0}%`, transition: 'width 0.4s' }} />
                       </div>
                     </div>
@@ -3239,9 +3307,9 @@ export default function Dashboard() {
                 action={
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     {compareData && (
-                      <div style={{ display: 'flex', gap: 2, background: '#e5e7eb', borderRadius: 8, padding: 2 }}>
-                        <button onClick={() => setStaffView('a')} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: 'none', background: staffView === 'a' ? '#fff' : 'transparent', color: staffView === 'a' ? BLUE : T.MUTED, fontWeight: staffView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
-                        <button onClick={() => setStaffView('b')} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: 'none', background: staffView === 'b' ? '#fff' : 'transparent', color: staffView === 'b' ? STORE_B_COLOR : T.MUTED, fontWeight: staffView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
+                      <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.30)', borderRadius: 8, padding: 2 }}>
+                        <button onClick={() => setStaffView('a')} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: 'none', background: staffView === 'a' ? 'var(--sd-card2)' : 'transparent', color: staffView === 'a' ? '#60a5fa' : T.MUTED, fontWeight: staffView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
+                        <button onClick={() => setStaffView('b')} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: 'none', background: staffView === 'b' ? 'var(--sd-card2)' : 'transparent', color: staffView === 'b' ? '#a78bfa' : T.MUTED, fontWeight: staffView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
                       </div>
                     )}
                     {staffView === 'a' && (
@@ -3256,7 +3324,7 @@ export default function Dashboard() {
                 {(() => {
                   const staffData = (compareData && staffView === 'b') ? compareData : data
                   const staffColor = (compareData && staffView === 'b') ? STORE_B_COLOR : BLUE
-                  const staffBarBg = staffColor === STORE_B_COLOR ? '#ddd6fe' : '#bfdbfe'
+                  const staffBarBg = staffColor === STORE_B_COLOR ? 'rgba(124,58,237,0.40)' : 'rgba(37,99,235,0.40)'
                   const filtered = search ? staffData.salesmen.filter(s => s.name.toLowerCase().includes(search.toLowerCase())) : staffData.salesmen
                   const LB_LIMIT = 10
                   const visibleStaff = (!search && !showAllLeaderboard) ? filtered.slice(0, LB_LIMIT) : filtered
@@ -3304,12 +3372,12 @@ export default function Dashboard() {
                                       <span style={{ fontSize: 10, color: T.MUTED }}>Target: {fmtMYR(target)}</span>
                                       <span style={{ fontSize: 10, color: pct >= 100 ? GREEN : ORANGE, fontWeight: 600 }}>{pct.toFixed(0)}%</span>
                                     </div>
-                                    <div style={{ background: '#e5e7eb', borderRadius: 4, height: 5 }}>
+                                    <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 4, height: 5 }}>
                                       <div style={{ background: pct >= 100 ? GREEN : pct >= 70 ? BLUE : ORANGE, height: '100%', borderRadius: 4, width: `${pct}%`, transition: 'width 0.4s' }} />
                                     </div>
                                   </div>
                                 ) : (
-                                  <div style={{ background: '#e5e7eb', borderRadius: 4, height: 4 }}>
+                                  <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 4, height: 4 }}>
                                     <div style={{ background: i === 0 ? staffColor : staffBarBg, height: '100%', borderRadius: 4, width: `${filtered[0] ? Math.round(s.revenue / filtered[0].revenue * 100) : 0}%` }} />
                                   </div>
                                 )}
@@ -3391,7 +3459,7 @@ export default function Dashboard() {
                     return (
                       <>
                         <div style={{ display: 'flex', gap: 14, marginBottom: 10 }}>
-                          {[{ color: BLUE, name: nameA }, { color: STORE_B_COLOR, name: nameB }].map(s => (
+                          {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
                             <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: T.MUTED }}>
                               <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />{s.name}
                             </div>
@@ -3404,15 +3472,15 @@ export default function Dashboard() {
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                                 <span style={{ fontSize: 11, color: T.TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '55%' }}>{p.name}</span>
                                 <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: BLUE }}>{fmtNum(p.unitsA)}</span>
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: STORE_B_COLOR }}>{fmtNum(p.unitsB)}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#60a5fa' }}>{fmtNum(p.unitsA)}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa' }}>{fmtNum(p.unitsB)}</span>
                                 </div>
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                <div style={{ background: '#e5e7eb', borderRadius: 3, height: 4 }}>
+                                <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 3, height: 4 }}>
                                   <div style={{ background: BLUE, height: '100%', borderRadius: 3, width: `${Math.round(p.unitsA / maxUnits * 100)}%`, transition: 'width 0.4s' }} />
                                 </div>
-                                <div style={{ background: '#e5e7eb', borderRadius: 3, height: 4 }}>
+                                <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 3, height: 4 }}>
                                   <div style={{ background: STORE_B_COLOR, height: '100%', borderRadius: 3, width: `${Math.round(p.unitsB / maxUnits * 100)}%`, transition: 'width 0.4s' }} />
                                 </div>
                               </div>
@@ -3421,8 +3489,8 @@ export default function Dashboard() {
                         </div>
                         <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.BORDER}`, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 11, color: T.MUTED }}>Showing <strong style={{ color: T.TEXT }}>{filtered.length}</strong> products</span>
-                          <span style={{ fontSize: 11, color: BLUE }}>{nameA}: <strong>{fmtNum(data.allProducts.reduce((s, p) => s + p.units, 0))} units</strong></span>
-                          <span style={{ fontSize: 11, color: STORE_B_COLOR }}>{nameB}: <strong>{fmtNum(compareData.allProducts.reduce((s, p) => s + p.units, 0))} units</strong></span>
+                          <span style={{ fontSize: 11, color: '#60a5fa' }}>{nameA}: <strong>{fmtNum(data.allProducts.reduce((s, p) => s + p.units, 0))} units</strong></span>
+                          <span style={{ fontSize: 11, color: '#a78bfa' }}>{nameB}: <strong>{fmtNum(compareData.allProducts.reduce((s, p) => s + p.units, 0))} units</strong></span>
                         </div>
                       </>
                     )
@@ -3436,21 +3504,47 @@ export default function Dashboard() {
                     <>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', paddingRight: 2 }}>
                         {filtered.length === 0 && <p style={{ fontSize: 12, color: T.MUTED, textAlign: 'center', padding: '1rem 0' }}>No products found</p>}
-                        {filtered.map((p, i) => (
-                          <div key={i}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                              <span style={{ fontSize: 11, color: T.TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '68%' }}>{p.name}</span>
-                              <span style={{ fontSize: 11, fontWeight: 600, color: COLORS[i % COLORS.length], flexShrink: 0, marginLeft: 4 }}>{fmtNum(p.units)} units</span>
+                        {filtered.map((p, i) => {
+                          const isCare = /\bCARE\s+REFRESH\b/i.test(p.name)
+                          // For non-Care products, find matching care plan by checking if product name contains the care device key
+                          let careCount = 0
+                          if (!isCare && data.careByDevice) {
+                            const nl = p.name.toLowerCase()
+                            for (const [dev, cnt] of Object.entries(data.careByDevice)) {
+                              if (nl.includes(dev)) { careCount = cnt; break }
+                            }
+                          }
+                          // For Care products, extract device from parens to show what they cover
+                          const careCovers = isCare ? (() => { const m = p.name.match(/\(([^)]+)\)/); return m ? m[1].trim() : null })() : null
+                          const attachPct = careCount > 0 ? Math.round(careCount / p.units * 100) : 0
+                          return (
+                            <div key={i}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                                <span style={{ fontSize: 11, color: T.TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '55%' }}>{p.name}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 4 }}>
+                                  {careCount > 0 && (
+                                    <span style={{ fontSize: 10, background: attachPct >= 30 ? 'rgba(22,163,74,0.18)' : attachPct >= 10 ? '#fef9c3' : 'rgba(220,38,38,0.20)', color: attachPct >= 30 ? '#4ade80' : attachPct >= 10 ? '#ca8a04' : '#f87171', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>
+                                      Care {careCount} ({attachPct}%)
+                                    </span>
+                                  )}
+                                  {isCare && careCovers && (
+                                    <span style={{ fontSize: 10, background: 'rgba(37,99,235,0.14)', color: '#2563eb', borderRadius: 4, padding: '1px 5px' }}>
+                                      {careCovers}
+                                    </span>
+                                  )}
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: COLORS[i % COLORS.length] }}>{fmtNum(p.units)} units</span>
+                                </div>
+                              </div>
+                              <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 4, height: 4 }}>
+                                <div style={{ background: COLORS[i % COLORS.length], height: '100%', borderRadius: 4, width: `${Math.round(p.units / maxUnits * 100)}%`, transition: 'width 0.4s' }} />
+                              </div>
                             </div>
-                            <div style={{ background: '#e5e7eb', borderRadius: 4, height: 4 }}>
-                              <div style={{ background: COLORS[i % COLORS.length], height: '100%', borderRadius: 4, width: `${Math.round(p.units / maxUnits * 100)}%`, transition: 'width 0.4s' }} />
-                            </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                       <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.BORDER}`, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 11, color: T.MUTED }}>Showing <strong style={{ color: T.TEXT }}>{filtered.length}</strong> of <strong style={{ color: T.TEXT }}>{data.allProducts.length}</strong></span>
-                        <span style={{ fontSize: 11, color: T.MUTED }}>Total: <strong style={{ color: T.TEXT }}>{fmtNum(data.allProducts.reduce((s, p) => s + p.units, 0))} units</strong></span>
+                        <span style={{ fontSize: 11, color: T.MUTED }}>Total: <strong style={{ color: T.TEXT }}>{fmtNum(filtered.reduce((s, p) => s + p.units, 0))} units</strong>{allProductSearch && <span style={{ color: T.MUTED }}> (filtered)</span>}</span>
                         {data.deviceUnits > 0 && (
                           <span style={{ fontSize: 11, color: T.MUTED }}>
                             DJI Care attach rate: <strong style={{ color: data.careAttachRate >= 0.3 ? GREEN : data.careAttachRate >= 0.1 ? ORANGE : RED }}>
@@ -3469,9 +3563,9 @@ export default function Dashboard() {
               <Card
                 title="By salesman"
                 action={compareData ? (
-                  <div style={{ display: 'flex', gap: 2, background: '#e5e7eb', borderRadius: 8, padding: 2 }}>
-                    <button onClick={() => { setProdCountView('a'); setSelectedSalesman(null) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: prodCountView === 'a' ? '#fff' : 'transparent', color: prodCountView === 'a' ? BLUE : T.MUTED, fontWeight: prodCountView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
-                    <button onClick={() => { setProdCountView('b'); setSelectedSalesman(null) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: prodCountView === 'b' ? '#fff' : 'transparent', color: prodCountView === 'b' ? STORE_B_COLOR : T.MUTED, fontWeight: prodCountView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
+                  <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.30)', borderRadius: 8, padding: 2 }}>
+                    <button onClick={() => { setProdCountView('a'); setSelectedSalesman(null) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: prodCountView === 'a' ? 'var(--sd-card2)' : 'transparent', color: prodCountView === 'a' ? '#60a5fa' : T.MUTED, fontWeight: prodCountView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
+                    <button onClick={() => { setProdCountView('b'); setSelectedSalesman(null) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: prodCountView === 'b' ? 'var(--sd-card2)' : 'transparent', color: prodCountView === 'b' ? '#a78bfa' : T.MUTED, fontWeight: prodCountView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
                   </div>
                 ) : null}
               >
@@ -3509,7 +3603,7 @@ export default function Dashboard() {
                               ))}
                             </div>
                             {hasMore && (
-                              <button onClick={() => setShowAllSalesmen(v => !v)} style={{ fontSize: 11, color: BLUE, background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 14px', fontWeight: 600 }}>
+                              <button onClick={() => setShowAllSalesmen(v => !v)} style={{ fontSize: 11, color: '#60a5fa', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 14px', fontWeight: 600 }}>
                                 {showAllSalesmen ? '▲ Show less' : `▼ Show all ${allSalesmen.length} salesmen`}
                               </button>
                             )}
@@ -3546,7 +3640,7 @@ export default function Dashboard() {
                                     <span style={{ fontSize: 11, color: T.TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '68%' }}>{p.product}</span>
                                     <span style={{ fontSize: 11, fontWeight: 600, color: pcColor, flexShrink: 0, marginLeft: 4 }}>{fmtNum(p.units)} units</span>
                                   </div>
-                                  <div style={{ background: '#e5e7eb', borderRadius: 4, height: 4 }}>
+                                  <div style={{ background: 'rgba(0,0,0,0.30)', borderRadius: 4, height: 4 }}>
                                     <div style={{ background: pcColor, height: '100%', borderRadius: 4, width: `${Math.round(p.units / maxUnits * 100)}%`, transition: 'width 0.4s' }} />
                                   </div>
                                 </div>
@@ -3575,9 +3669,9 @@ export default function Dashboard() {
             <Card
               title="Hour × day heatmap"
               action={compareData ? (
-                <div style={{ display: 'flex', gap: 2, background: '#e5e7eb', borderRadius: 8, padding: 2 }}>
-                  <button onClick={() => setHeatView('a')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: heatView === 'a' ? '#fff' : 'transparent', color: heatView === 'a' ? BLUE : T.MUTED, fontWeight: heatView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
-                  <button onClick={() => setHeatView('b')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: heatView === 'b' ? '#fff' : 'transparent', color: heatView === 'b' ? STORE_B_COLOR : T.MUTED, fontWeight: heatView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
+                <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.30)', borderRadius: 8, padding: 2 }}>
+                  <button onClick={() => setHeatView('a')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: heatView === 'a' ? 'var(--sd-card2)' : 'transparent', color: heatView === 'a' ? '#60a5fa' : T.MUTED, fontWeight: heatView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
+                  <button onClick={() => setHeatView('b')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: heatView === 'b' ? 'var(--sd-card2)' : 'transparent', color: heatView === 'b' ? '#a78bfa' : T.MUTED, fontWeight: heatView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
                 </div>
               ) : null}
             >
@@ -3597,7 +3691,7 @@ export default function Dashboard() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginBottom: 12, fontSize: 11, color: T.MUTED }}>
                       <span>Low</span>
                       {[0.08,0.3,0.5,0.7,0.9].map(o => (
-                        <div key={o} style={{ width: 14, height: 14, borderRadius: 2, background: o === 0.08 ? '#f1f5f9' : `rgba(${rgb_r},${rgb_g},${rgb_b},${o})` }} />
+                        <div key={o} style={{ width: 14, height: 14, borderRadius: 2, background: o === 0.08 ? 'var(--sd-card3)' : `rgba(${rgb_r},${rgb_g},${rgb_b},${o})` }} />
                       ))}
                       <span>High</span>
                     </div>
@@ -3623,10 +3717,10 @@ export default function Dashboard() {
                                 return (
                                   <div key={h} title={`${DAYS[d]} ${fmtHour(h)}: ${Math.round(val)} orders`} style={{
                                     flex: 1, height: isMobile ? 22 : 28, borderRadius: 3, minWidth: 0,
-                                    background: t === 0 ? '#f1f5f9' : `rgba(${rgb_r},${rgb_g},${rgb_b},${0.08 + t * 0.82})`,
+                                    background: t === 0 ? 'var(--sd-card3)' : `rgba(${rgb_r},${rgb_g},${rgb_b},${0.08 + t * 0.82})`,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   }}>
-                                    {val > 0 && <span style={{ fontSize: 9, fontWeight: 700, lineHeight: 1, color: t > 0.5 ? '#fff' : '#475569', pointerEvents: 'none' }}>{Math.round(val)}</span>}
+                                    {val > 0 && <span style={{ fontSize: 9, fontWeight: 700, lineHeight: 1, color: t > 0.5 ? '#fff' : 'var(--sd-muted)', pointerEvents: 'none' }}>{Math.round(val)}</span>}
                                   </div>
                                 )
                               })}
@@ -3644,7 +3738,7 @@ export default function Dashboard() {
                             const val = allHourTotals[h]
                             const t = colMax > 0 ? val / colMax : 0
                             return (
-                              <div key={h} style={{ flex: 1, height: 20, borderRadius: 3, minWidth: 0, background: t === 0 ? '#f8fafc' : `rgba(${rgb_r},${rgb_g},${rgb_b},${0.06 + t * 0.35})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <div key={h} style={{ flex: 1, height: 20, borderRadius: 3, minWidth: 0, background: t === 0 ? 'var(--sd-card3)' : `rgba(${rgb_r},${rgb_g},${rgb_b},${0.06 + t * 0.35})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <span style={{ fontSize: 9, fontWeight: 600, color: '#64748b' }}>{val > 0 ? val : ''}</span>
                               </div>
                             )
@@ -3665,8 +3759,8 @@ export default function Dashboard() {
                       const wrNum = parseFloat(activeHeatData.weekendRatio)
                       const isB = activeHeatColor === STORE_B_COLOR
                       const accent = isB ? STORE_B_COLOR : BLUE
-                      const bg = isB ? '#faf5ff' : '#f8faff'
-                      const bdr = isB ? '#e9d5ff' : '#e0eaff'
+                      const bg = isB ? 'rgba(124,58,237,0.12)' : 'rgba(37,99,235,0.10)'
+                      const bdr = isB ? 'rgba(124,58,237,0.40)' : 'rgba(37,99,235,0.22)'
 
                       const weekendTag = !isNaN(wrNum)
                         ? wrNum >= 1.2 ? { label: `${wrNum}× weekday avg`, color: GREEN }
@@ -3720,9 +3814,9 @@ export default function Dashboard() {
                                 <div style={{ fontSize: 10, fontWeight: 700, color: accent, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Top sales dates</div>
                                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                   {topDates.map((d, i) => (
-                                    <div key={i} style={{ background: i === 0 ? accent : '#fff', border: `1px solid ${i === 0 ? accent : bdr}`, borderRadius: 8, padding: '5px 10px', fontSize: 12 }}>
+                                    <div key={i} style={{ background: i === 0 ? accent : 'var(--sd-card2)', border: `1px solid ${i === 0 ? accent : bdr}`, borderRadius: 8, padding: '5px 10px', fontSize: 12 }}>
                                       <div style={{ fontWeight: 700, color: i === 0 ? '#fff' : T.TEXT }}>{d.fullDate || d.date}</div>
-                                      <div style={{ fontSize: 11, color: i === 0 ? 'rgba(255,255,255,0.8)' : T.MUTED, marginTop: 1 }}>{Math.abs(d.orders)} sales · {fmtMYR(d.revenue)}</div>
+                                      <div style={{ fontSize: 11, color: i === 0 ? 'var(--sd-w8)' : T.MUTED, marginTop: 1 }}>{Math.abs(d.orders)} sales · {fmtMYR(d.revenue)}</div>
                                     </div>
                                   ))}
                                 </div>
@@ -3763,7 +3857,7 @@ export default function Dashboard() {
                         <Bar dataKey="value" radius={[4,4,0,0]}>
                           {td.invoiceDowTotals.map((d, i) => {
                             const max = Math.max(...td.invoiceDowTotals.map(x => x.value))
-                            return <Cell key={i} fill={d.value === max ? tdColor : (tdColor === STORE_B_COLOR ? '#ddd6fe' : '#bfdbfe')} />
+                            return <Cell key={i} fill={d.value === max ? tdColor : (tdColor === STORE_B_COLOR ? 'rgba(124,58,237,0.40)' : 'rgba(37,99,235,0.40)')} />
                           })}
                         </Bar>
                       </BarChart>
@@ -3793,22 +3887,22 @@ export default function Dashboard() {
             border: '1px solid rgba(139,92,246,0.3)',
           }}>
             <div style={{ fontSize: 32, textAlign: 'center', marginBottom: 12 }}>🔁</div>
-            <h3 style={{ margin: '0 0 8px', color: '#e0e7ff', fontSize: 16, fontWeight: 700, textAlign: 'center' }}>
+            <h3 style={{ margin: '0 0 8px', color: 'rgba(99,102,241,0.28)', fontSize: 16, fontWeight: 700, textAlign: 'center' }}>
               Same data detected
             </h3>
-            <p style={{ margin: '0 0 20px', color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6, textAlign: 'center' }}>
+            <p style={{ margin: '0 0 20px', color: 'var(--sd-w55)', fontSize: 13, lineHeight: 1.6, textAlign: 'center' }}>
               A saved analysis already exists for this dataset. Regenerating will call the AI again and overwrite the saved result.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowRegenConfirm(false)} style={{
                 flex: 1, padding: '11px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)',
-                background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                background: 'transparent', color: 'var(--sd-w6)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
               }}>
                 Cancel
               </button>
               <button onClick={() => { setShowRegenConfirm(false); runAIAnalysis(true) }} style={{
                 flex: 1, padding: '11px', borderRadius: 10, border: 'none',
-                background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', color: '#fff',
+                background: 'linear-gradient(135deg,#7c3aed,#818cf8)', color: '#fff',
                 fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 boxShadow: '0 4px 14px rgba(99,102,241,0.4)',
               }}>
