@@ -52,7 +52,7 @@ const T = {
   TOOLTIP_BG: 'var(--sd-card2)',
   META_BG: 'rgba(37,99,235,0.14)',
   META_BORDER: 'rgba(37,99,235,0.40)',
-  META_TEXT: '#60a5fa',
+  META_TEXT: 'var(--sd-blue)',
   SECTION: '#9ca3af',
 }
 
@@ -852,7 +852,7 @@ function MiniCalendar({ trend }) {
   return (
     <div style={{ flexShrink: 0, width: 164, fontFamily: 'inherit' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: '#60a5fa', letterSpacing: '0.06em' }}>{MONTH_NAMES[month - 1].toUpperCase()}</span>
+        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--sd-blue)', letterSpacing: '0.06em' }}>{MONTH_NAMES[month - 1].toUpperCase()}</span>
         <span style={{ fontSize: 10, color: T.MUTED }}>{year}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
@@ -872,7 +872,7 @@ function MiniCalendar({ trend }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 9, fontWeight: isPeak || isToday ? 800 : 500,
               background: isPeak ? BLUE : isToday ? 'rgba(220,38,38,0.20)' : rev > 0 ? `rgba(37,99,235,${intensity})` : 'transparent',
-              color: isPeak ? '#fff' : isToday ? '#f87171' : rev > 0 ? (intensity > 0.5 ? '#60a5fa' : T.MUTED) : T.MUTED,
+              color: isPeak ? '#fff' : isToday ? '#f87171' : rev > 0 ? (intensity > 0.5 ? 'var(--sd-blue)' : T.MUTED) : T.MUTED,
               cursor: 'default',
               outline: isToday && !isPeak ? '1.5px solid #fca5a5' : 'none',
             }}>{d}</div>
@@ -1038,7 +1038,7 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
                   width: isMobile ? 28 : 30, height: isMobile ? 28 : 30, borderRadius: '50%',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: (isS || isE) ? BLUE : 'transparent',
-                  color: (isS || isE) ? '#fff' : inR ? '#60a5fa' : isToday ? BLUE : 'var(--sd-text2)',
+                  color: (isS || isE) ? '#fff' : inR ? 'var(--sd-blue)' : isToday ? BLUE : 'var(--sd-text2)',
                   fontWeight: (isS || isE) ? 700 : isToday ? 600 : 400,
                   fontSize: isMobile ? 12 : 13,
                   boxShadow: isToday && !(isS || isE) ? `inset 0 0 0 1.5px ${BLUE}` : 'none',
@@ -1102,7 +1102,7 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
                   padding: '5px 12px', border: `1px solid ${active ? BLUE : 'var(--sd-w12)'}`, borderRadius: 20,
                   cursor: 'pointer', fontSize: 11, flexShrink: 0,
                   background: active ? 'rgba(37,99,235,0.14)' : 'var(--sd-card2)',
-                  color: active ? '#60a5fa' : 'var(--sd-text2)',
+                  color: active ? 'var(--sd-blue)' : 'var(--sd-text2)',
                   fontWeight: active ? 600 : 400,
                   whiteSpace: 'nowrap',
                 }}>
@@ -1113,7 +1113,7 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
                   display: 'flex', alignItems: 'center', width: '100%', textAlign: 'left',
                   padding: '7px 16px', border: 'none', cursor: 'pointer', fontSize: 13,
                   background: active ? 'rgba(37,99,235,0.14)' : 'transparent',
-                  color: active ? '#60a5fa' : 'var(--sd-text2)',
+                  color: active ? 'var(--sd-blue)' : 'var(--sd-text2)',
                   fontWeight: active ? 600 : 400,
                 }}>
                   {active && <span style={{ width: 3, height: 14, background: BLUE, borderRadius: 2, marginRight: 8, flexShrink: 0 }} />}
@@ -1807,7 +1807,7 @@ export default function Dashboard() {
             <p style={{ color: 'var(--sd-w4)', fontSize: 12, margin: '0 0 40px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>Operator Hub · Sales Analytics</p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
               {[0, 1, 2].map(i => (
-                <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: '#3b82f6', animation: `splashDot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+                <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--sd-blue)', animation: `splashDot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
               ))}
             </div>
           </div>
@@ -1841,7 +1841,7 @@ export default function Dashboard() {
           background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(6px)',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20,
         }}>
-          <div style={{ width: 48, height: 48, border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#60a5fa', borderRadius: '50%', animation: 'splashSpin 0.75s linear infinite' }} />
+          <div style={{ width: 48, height: 48, border: '4px solid rgba(255,255,255,0.2)', borderTopColor: 'var(--sd-blue)', borderRadius: '50%', animation: 'splashSpin 0.75s linear infinite' }} />
           <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>{cloudLoading ? 'Loading from cloud…' : 'Analysing your data…'}</p>
           <p style={{ color: 'var(--sd-w5)', fontSize: 12, margin: 0 }}>This only takes a moment</p>
         </div>
@@ -1873,7 +1873,7 @@ export default function Dashboard() {
             title={data ? 'Go to Home' : ''}
           >
             <div style={{ width: 30, height: 30, borderRadius: 8, background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>📊</div>
-            <span style={{ fontWeight: 800, fontSize: 15, color: '#60a5fa', letterSpacing: '-0.01em' }}>StoreDash</span>
+            <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--sd-blue)', letterSpacing: '-0.01em' }}>StoreDash</span>
             {data && <span style={{ fontSize: 10, color: T.MUTED, marginLeft: -2 }}>⌂</span>}
           </div>
         </div>
@@ -1883,7 +1883,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(37,99,235,0.14)', border: `1px solid rgba(37,99,235,0.40)`, borderRadius: 20, padding: '4px 12px' }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: BLUE, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#60a5fa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 220 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sd-blue)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 220 }}>
                 {data.availableOutlets?.length > 1
                   ? (outletFilter ? outletLabel(outletFilter) : 'All Outlets')
                   : (outletLabel(data.meta?.outlet) || fileName)}
@@ -1894,7 +1894,7 @@ export default function Dashboard() {
                 <span style={{ fontSize: 11, color: T.MUTED }}>vs</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(124,58,237,0.14)', border: `1px solid rgba(124,58,237,0.40)`, borderRadius: 20, padding: '4px 12px' }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: STORE_B_COLOR, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#a78bfa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 220 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sd-purple)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isTablet ? 120 : 220 }}>
                     {outletLabel(compareData.meta?.outlet) || compareFileName}
                   </span>
                 </div>
@@ -1943,7 +1943,7 @@ export default function Dashboard() {
                     fontSize: 12, padding: '5px 10px', borderRadius: 20, cursor: 'pointer',
                     border: `1.5px solid ${outletFilter ? BLUE : T.BORDER_STRONG}`,
                     background: outletFilter ? 'rgba(37,99,235,0.14)' : T.CARD,
-                    color: outletFilter ? '#60a5fa' : T.TEXT,
+                    color: outletFilter ? 'var(--sd-blue)' : T.TEXT,
                     fontWeight: outletFilter ? 700 : 400,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                     maxWidth: 180, appearance: 'none',
@@ -1965,7 +1965,7 @@ export default function Dashboard() {
                   fontSize: 12, padding: '5px 10px', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap',
                   border: `1px solid ${dateRange ? BLUE : T.BORDER_STRONG}`,
                   background: dateRange ? 'rgba(37,99,235,0.14)' : T.CARD,
-                  color: dateRange ? '#60a5fa' : T.TEXT,
+                  color: dateRange ? 'var(--sd-blue)' : T.TEXT,
                   fontWeight: dateRange ? 600 : 400,
                   boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                   display: 'flex', alignItems: 'center', gap: 4,
@@ -1988,7 +1988,7 @@ export default function Dashboard() {
                 <>
                   <input ref={compareFileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => handleCompareFile(e.target.files[0])} />
                   <button onClick={() => compareFileRef.current.click()}
-                    style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: `1px solid ${STORE_B_COLOR}`, background: 'rgba(124,58,237,0.14)', color: '#a78bfa', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: `1px solid ${STORE_B_COLOR}`, background: 'rgba(124,58,237,0.14)', color: 'var(--sd-purple)', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
                     + Compare
                   </button>
                 </>
@@ -2017,7 +2017,7 @@ export default function Dashboard() {
           {data && !isMobile && (
             <button onClick={() => { setShowSaveDialog(true); setSaveStatus(null); setSaveKey('') }}
               title="Save current data to cloud so team can load it on any device"
-              style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: `1px solid rgba(37,99,235,0.40)`, background: 'rgba(37,99,235,0.14)', color: '#60a5fa', cursor: 'pointer', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', whiteSpace: 'nowrap' }}>
+              style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: `1px solid rgba(37,99,235,0.40)`, background: 'rgba(37,99,235,0.14)', color: 'var(--sd-blue)', cursor: 'pointer', fontWeight: 600, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', whiteSpace: 'nowrap' }}>
               ☁️ Save
             </button>
           )}
@@ -2080,7 +2080,7 @@ export default function Dashboard() {
                 fontSize: 12, padding: '4px 8px', borderRadius: 20, cursor: 'pointer', flexShrink: 0,
                 border: `1.5px solid ${outletFilter ? BLUE : T.BORDER_STRONG}`,
                 background: outletFilter ? 'rgba(37,99,235,0.14)' : T.CARD,
-                color: outletFilter ? '#60a5fa' : T.TEXT,
+                color: outletFilter ? 'var(--sd-blue)' : T.TEXT,
                 fontWeight: outletFilter ? 700 : 400,
                 maxWidth: 160, appearance: 'none',
                 paddingRight: 22, backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E")`,
@@ -2222,7 +2222,7 @@ export default function Dashboard() {
               <p style={{ fontWeight: 600, fontSize: 16, margin: '0 0 4px', color: T.TEXT }}>Drop your CSV file here</p>
               <p style={{ color: T.MUTED, fontSize: 13, margin: '0 0 1.25rem' }}>or click to browse</p>
               <button onClick={e => { e.stopPropagation(); loadDemo() }}
-                style={{ padding: '9px 22px', borderRadius: 9, cursor: 'pointer', fontSize: 13, border: `1px solid ${BLUE}`, background: 'rgba(37,99,235,0.14)', color: '#60a5fa', fontWeight: 600 }}>
+                style={{ padding: '9px 22px', borderRadius: 9, cursor: 'pointer', fontSize: 13, border: `1px solid ${BLUE}`, background: 'rgba(37,99,235,0.14)', color: 'var(--sd-blue)', fontWeight: 600 }}>
                 ✨ Try with demo data
               </button>
             </div>
@@ -2231,7 +2231,7 @@ export default function Dashboard() {
             <div className="sd-home" style={{ background: T.CARD, border: `1px solid ${cloudFiles.length ? 'rgba(37,99,235,0.40)' : T.BORDER}`, borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: cloudFiles.length ? 10 : 0 }}>
                 <span style={{ fontSize: 18 }}>☁️</span>
-                <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: cloudFiles.length ? '#60a5fa' : T.TEXT }}>
+                <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: cloudFiles.length ? 'var(--sd-blue)' : T.TEXT }}>
                   {cloudFiles.length ? `Cloud files (${cloudFiles.length})` : 'No cloud files yet'}
                 </p>
               </div>
@@ -2252,10 +2252,10 @@ export default function Dashboard() {
                       <div key={f.key} className="sd-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'rgba(37,99,235,0.14)', borderRadius: 8, border: '1px solid rgba(37,99,235,0.35)', animationDelay: `${i * 50}ms` }}>
                         <span style={{ fontSize: 14 }}>📂</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 12, fontWeight: 700, color: '#60a5fa', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--sd-blue)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {f.outlet ? outletLabel(f.outlet) : f.filename}
                           </p>
-                          <p style={{ fontSize: 11, color: '#3b82f6', margin: 0 }}>
+                          <p style={{ fontSize: 11, color: 'var(--sd-blue)', margin: 0 }}>
                             {f.period && <span>{formatPeriodMeta(f.period)} · </span>}
                             {f.totalTx && <span>{f.totalTx} tx · </span>}
                             {ago}
@@ -2395,7 +2395,7 @@ export default function Dashboard() {
               <p style={{ fontSize: 12, color: T.MUTED, margin: '0 0 12px' }}>Auto-detected — just drop the file</p>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ background: T.BG, border: `1px solid ${T.BORDER}`, borderRadius: 8, padding: '10px 12px', flex: 1 }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#60a5fa', margin: '0 0 4px' }}>POS Report (CustomerPurchaseListing)</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--sd-blue)', margin: '0 0 4px' }}>POS Report (CustomerPurchaseListing)</p>
                   <p style={{ fontSize: 11, color: T.MUTED, margin: 0 }}>Your Kassie export — metadata rows auto-skipped</p>
                 </div>
                 <div style={{ background: T.BG, border: `1px solid ${T.BORDER}`, borderRadius: 8, padding: '10px 12px', flex: 1 }}>
@@ -2419,7 +2419,7 @@ export default function Dashboard() {
             {data.meta?.period && (
               <div style={{ background: T.META_BG, border: `1px solid ${T.META_BORDER}`, borderRadius: 10, padding: isMobile ? '8px 12px' : '10px 16px', marginBottom: '1.5rem', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 5 : 24, flexWrap: 'wrap', alignItems: isMobile ? 'flex-start' : 'center' }}>
                 {data.meta.outlet && <span style={{ fontSize: 12, color: T.META_TEXT, fontWeight: 600 }}>🏪 {outletLabel(data.meta.outlet)}</span>}
-                {data.meta.period && <span style={{ fontSize: 12, color: '#3b82f6' }}>📅 {formatPeriodMeta(data.meta.period)}</span>}
+                {data.meta.period && <span style={{ fontSize: 12, color: 'var(--sd-blue)' }}>📅 {formatPeriodMeta(data.meta.period)}</span>}
                 {data.meta.generated && <span style={{ fontSize: 12, color: T.MUTED }}>🕐 Generated: {data.meta.generated}</span>}
                 {data.meta.totalTx && <span style={{ fontSize: 12, color: T.MUTED }}>🧾 {data.meta.totalTx} transactions</span>}
                 {data.meta.kassieTotal != null && !dateRange && (
@@ -2481,7 +2481,7 @@ export default function Dashboard() {
                 {/* Revenue overlay trend */}
                 <Card title="Revenue trend — store comparison" style={{ marginBottom: 12 }}>
                   <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
-                    {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
+                    {[{ color: 'var(--sd-blue)', name: nameA }, { color: 'var(--sd-purple)', name: nameB }].map(s => (
                       <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.MUTED }}>
                         <div style={{ width: 20, height: 3, borderRadius: 2, background: s.color }} />
                         {s.name}
@@ -2513,7 +2513,7 @@ export default function Dashboard() {
                     </BarChart>
                   </ResponsiveContainer>
                   <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-                    {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
+                    {[{ color: 'var(--sd-blue)', name: nameA }, { color: 'var(--sd-purple)', name: nameB }].map(s => (
                       <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.MUTED }}>
                         <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color }} />
                         {s.name}
@@ -2525,7 +2525,7 @@ export default function Dashboard() {
                 {/* Month-over-month comparison */}
                 <Card title="Monthly revenue — month-over-month comparison" style={{ marginTop: 12 }}>
                   <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
-                    {[{ color: '#60a5fa', name: nameA, mom: data.momChange }, { color: '#a78bfa', name: nameB, mom: compareData.momChange }].map(s => (
+                    {[{ color: 'var(--sd-blue)', name: nameA, mom: data.momChange }, { color: 'var(--sd-purple)', name: nameB, mom: compareData.momChange }].map(s => (
                       <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
                         <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color }} />
                         <span style={{ color: T.MUTED }}>{s.name}</span>
@@ -2549,7 +2549,7 @@ export default function Dashboard() {
                 {/* Top products comparison */}
                 <Card title="Top products — comparison" style={{ marginTop: 12 }}>
                   <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
-                    {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
+                    {[{ color: 'var(--sd-blue)', name: nameA }, { color: 'var(--sd-purple)', name: nameB }].map(s => (
                       <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.MUTED }}>
                         <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color }} />
                         {s.name}
@@ -2564,8 +2564,8 @@ export default function Dashboard() {
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                             <span style={{ fontSize: 12, color: T.TEXT, maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                             <div style={{ display: 'flex', gap: 12 }}>
-                              <span style={{ fontSize: 11, color: '#60a5fa', fontWeight: 600 }}>{p.storeA > 0 ? fmtMYR(p.storeA) : '—'}</span>
-                              <span style={{ fontSize: 11, color: '#a78bfa', fontWeight: 600 }}>{p.storeB > 0 ? fmtMYR(p.storeB) : '—'}</span>
+                              <span style={{ fontSize: 11, color: 'var(--sd-blue)', fontWeight: 600 }}>{p.storeA > 0 ? fmtMYR(p.storeA) : '—'}</span>
+                              <span style={{ fontSize: 11, color: 'var(--sd-purple)', fontWeight: 600 }}>{p.storeB > 0 ? fmtMYR(p.storeB) : '—'}</span>
                             </div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -2601,7 +2601,7 @@ export default function Dashboard() {
                 }}
               >
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa', margin: '0 0 2px' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--sd-purple)', margin: '0 0 2px' }}>
                     {draggingB ? '📂 Drop Store B CSV here' : 'Compare with another store'}
                   </p>
                   <p style={{ fontSize: 12, color: T.MUTED, margin: 0 }}>
@@ -2611,7 +2611,7 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
                   <input ref={compareFileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => handleCompareFile(e.target.files[0])} />
                   <button onClick={loadDemoCompare}
-                    style={{ fontSize: 12, padding: '7px 14px', borderRadius: 8, border: `1px solid ${STORE_B_COLOR}`, background: 'transparent', color: '#a78bfa', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    style={{ fontSize: 12, padding: '7px 14px', borderRadius: 8, border: `1px solid ${STORE_B_COLOR}`, background: 'transparent', color: 'var(--sd-purple)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                     Try demo comparison
                   </button>
                   <button onClick={() => compareFileRef.current.click()}
@@ -2684,7 +2684,7 @@ export default function Dashboard() {
                 }}>
                   <div style={{ position: 'relative', width: 48, height: 48 }}>
                     <div style={{ position: 'absolute', inset: 0, border: '3px solid rgba(99,102,241,0.2)', borderTopColor: '#818cf8', borderRadius: '50%', animation: 'splashSpin 0.8s linear infinite' }} />
-                    <div style={{ position: 'absolute', inset: 6, border: '2px solid rgba(37,99,235,0.2)', borderTopColor: '#60a5fa', borderRadius: '50%', animation: 'splashSpin 1.2s linear infinite reverse' }} />
+                    <div style={{ position: 'absolute', inset: 6, border: '2px solid rgba(37,99,235,0.2)', borderTopColor: 'var(--sd-blue)', borderRadius: '50%', animation: 'splashSpin 1.2s linear infinite reverse' }} />
                   </div>
                   <div style={{ fontSize: 14, color: 'var(--sd-w12)', fontWeight: 700 }}>Analysing your store…</div>
                   <div style={{ fontSize: 12, color: 'var(--sd-w35)', textAlign: 'center' }}>Comparing against DJI Malaysia market benchmarks</div>
@@ -2840,7 +2840,7 @@ export default function Dashboard() {
                                   <span style={{ fontSize: 9.5, fontWeight: 800, color: isHigh ? RED : ORANGE, textTransform: 'uppercase', letterSpacing: '0.08em', background: isHigh ? 'rgba(220,38,38,0.14)' : 'rgba(234,88,12,0.10)', border: `1px solid ${isHigh ? '#fca5a5' : 'rgba(251,146,60,0.45)'}`, borderRadius: 4, padding: '1px 5px' }}>{imp.priority}</span>
                                   <span style={{ fontSize: 12.5, fontWeight: 700, color: T.TEXT }}>{imp.area}</span>
                                 </div>
-                                <div style={{ fontSize: 12.5, color: '#1e293b', marginBottom: 3 }}>→ {imp.action}</div>
+                                <div style={{ fontSize: 12.5, color: 'var(--sd-text)', marginBottom: 3 }}>→ {imp.action}</div>
                                 <div style={{ fontSize: 11.5, color: T.MUTED, lineHeight: 1.5 }}>{imp.impact}</div>
                               </div>
                             </div>
@@ -2886,7 +2886,7 @@ export default function Dashboard() {
                         <span style={{ fontSize: 13, color: T.MUTED }}> / {fmtMYR(monthlyTarget)}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: monthlyTargetPct >= 100 ? GREEN : monthlyTargetPct >= 70 ? '#60a5fa' : ORANGE }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: monthlyTargetPct >= 100 ? GREEN : monthlyTargetPct >= 70 ? 'var(--sd-blue)' : ORANGE }}>
                           {monthlyTargetPct.toFixed(0)}%
                         </span>
                         <button onClick={() => { setMonthlyTargetInput(String(monthlyTarget)); setEditingMonthlyTarget(true) }}
@@ -2954,7 +2954,7 @@ export default function Dashboard() {
             <Card title={compareData ? `Revenue trend — ${nameA} vs ${nameB}` : 'Revenue trend'}>
               {compareData && (
                 <div style={{ display: 'flex', gap: 16, marginBottom: 10 }}>
-                  {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
+                  {[{ color: 'var(--sd-blue)', name: nameA }, { color: 'var(--sd-purple)', name: nameB }].map(s => (
                     <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.MUTED }}>
                       <div style={{ width: 20, height: 3, borderRadius: 2, background: s.color }} />
                       {s.name}
@@ -3113,7 +3113,7 @@ export default function Dashboard() {
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 10, color: T.MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{fmtMonth(compareData.momCurrentLabel) || 'This month'}</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: '#a78bfa', lineHeight: 1 }}>{fmtMYR(compareData.momCurrent)}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--sd-purple)', lineHeight: 1 }}>{fmtMYR(compareData.momCurrent)}</div>
                       </div>
                       <div style={{ textAlign: 'center', paddingBottom: 4 }}>
                         <div style={{ fontSize: 18, color: arrowColor, lineHeight: 1 }}>{arrow}</div>
@@ -3168,7 +3168,7 @@ export default function Dashboard() {
                 </ResponsiveContainer>
                 {compareData && (
                   <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-                    {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
+                    {[{ color: 'var(--sd-blue)', name: nameA }, { color: 'var(--sd-purple)', name: nameB }].map(s => (
                       <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.MUTED }}>
                         <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color }} />
                         {s.name}
@@ -3308,8 +3308,8 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     {compareData && (
                       <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.30)', borderRadius: 8, padding: 2 }}>
-                        <button onClick={() => setStaffView('a')} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: 'none', background: staffView === 'a' ? 'var(--sd-card2)' : 'transparent', color: staffView === 'a' ? '#60a5fa' : T.MUTED, fontWeight: staffView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
-                        <button onClick={() => setStaffView('b')} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: 'none', background: staffView === 'b' ? 'var(--sd-card2)' : 'transparent', color: staffView === 'b' ? '#a78bfa' : T.MUTED, fontWeight: staffView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
+                        <button onClick={() => setStaffView('a')} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: 'none', background: staffView === 'a' ? 'var(--sd-card2)' : 'transparent', color: staffView === 'a' ? 'var(--sd-blue)' : T.MUTED, fontWeight: staffView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
+                        <button onClick={() => setStaffView('b')} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: 'none', background: staffView === 'b' ? 'var(--sd-card2)' : 'transparent', color: staffView === 'b' ? 'var(--sd-purple)' : T.MUTED, fontWeight: staffView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
                       </div>
                     )}
                     {staffView === 'a' && (
@@ -3459,7 +3459,7 @@ export default function Dashboard() {
                     return (
                       <>
                         <div style={{ display: 'flex', gap: 14, marginBottom: 10 }}>
-                          {[{ color: '#60a5fa', name: nameA }, { color: '#a78bfa', name: nameB }].map(s => (
+                          {[{ color: 'var(--sd-blue)', name: nameA }, { color: 'var(--sd-purple)', name: nameB }].map(s => (
                             <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: T.MUTED }}>
                               <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />{s.name}
                             </div>
@@ -3472,8 +3472,8 @@ export default function Dashboard() {
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                                 <span style={{ fontSize: 11, color: T.TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '55%' }}>{p.name}</span>
                                 <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#60a5fa' }}>{fmtNum(p.unitsA)}</span>
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa' }}>{fmtNum(p.unitsB)}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--sd-blue)' }}>{fmtNum(p.unitsA)}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--sd-purple)' }}>{fmtNum(p.unitsB)}</span>
                                 </div>
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -3489,8 +3489,8 @@ export default function Dashboard() {
                         </div>
                         <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.BORDER}`, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 11, color: T.MUTED }}>Showing <strong style={{ color: T.TEXT }}>{filtered.length}</strong> products</span>
-                          <span style={{ fontSize: 11, color: '#60a5fa' }}>{nameA}: <strong>{fmtNum(data.allProducts.reduce((s, p) => s + p.units, 0))} units</strong></span>
-                          <span style={{ fontSize: 11, color: '#a78bfa' }}>{nameB}: <strong>{fmtNum(compareData.allProducts.reduce((s, p) => s + p.units, 0))} units</strong></span>
+                          <span style={{ fontSize: 11, color: 'var(--sd-blue)' }}>{nameA}: <strong>{fmtNum(data.allProducts.reduce((s, p) => s + p.units, 0))} units</strong></span>
+                          <span style={{ fontSize: 11, color: 'var(--sd-purple)' }}>{nameB}: <strong>{fmtNum(compareData.allProducts.reduce((s, p) => s + p.units, 0))} units</strong></span>
                         </div>
                       </>
                     )
@@ -3564,8 +3564,8 @@ export default function Dashboard() {
                 title="By salesman"
                 action={compareData ? (
                   <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.30)', borderRadius: 8, padding: 2 }}>
-                    <button onClick={() => { setProdCountView('a'); setSelectedSalesman(null) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: prodCountView === 'a' ? 'var(--sd-card2)' : 'transparent', color: prodCountView === 'a' ? '#60a5fa' : T.MUTED, fontWeight: prodCountView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
-                    <button onClick={() => { setProdCountView('b'); setSelectedSalesman(null) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: prodCountView === 'b' ? 'var(--sd-card2)' : 'transparent', color: prodCountView === 'b' ? '#a78bfa' : T.MUTED, fontWeight: prodCountView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
+                    <button onClick={() => { setProdCountView('a'); setSelectedSalesman(null) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: prodCountView === 'a' ? 'var(--sd-card2)' : 'transparent', color: prodCountView === 'a' ? 'var(--sd-blue)' : T.MUTED, fontWeight: prodCountView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
+                    <button onClick={() => { setProdCountView('b'); setSelectedSalesman(null) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: prodCountView === 'b' ? 'var(--sd-card2)' : 'transparent', color: prodCountView === 'b' ? 'var(--sd-purple)' : T.MUTED, fontWeight: prodCountView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
                   </div>
                 ) : null}
               >
@@ -3603,7 +3603,7 @@ export default function Dashboard() {
                               ))}
                             </div>
                             {hasMore && (
-                              <button onClick={() => setShowAllSalesmen(v => !v)} style={{ fontSize: 11, color: '#60a5fa', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 14px', fontWeight: 600 }}>
+                              <button onClick={() => setShowAllSalesmen(v => !v)} style={{ fontSize: 11, color: 'var(--sd-blue)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 14px', fontWeight: 600 }}>
                                 {showAllSalesmen ? '▲ Show less' : `▼ Show all ${allSalesmen.length} salesmen`}
                               </button>
                             )}
@@ -3670,8 +3670,8 @@ export default function Dashboard() {
               title="Hour × day heatmap"
               action={compareData ? (
                 <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.30)', borderRadius: 8, padding: 2 }}>
-                  <button onClick={() => setHeatView('a')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: heatView === 'a' ? 'var(--sd-card2)' : 'transparent', color: heatView === 'a' ? '#60a5fa' : T.MUTED, fontWeight: heatView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
-                  <button onClick={() => setHeatView('b')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: heatView === 'b' ? 'var(--sd-card2)' : 'transparent', color: heatView === 'b' ? '#a78bfa' : T.MUTED, fontWeight: heatView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
+                  <button onClick={() => setHeatView('a')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: heatView === 'a' ? 'var(--sd-card2)' : 'transparent', color: heatView === 'a' ? 'var(--sd-blue)' : T.MUTED, fontWeight: heatView === 'a' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameA}</button>
+                  <button onClick={() => setHeatView('b')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: heatView === 'b' ? 'var(--sd-card2)' : 'transparent', color: heatView === 'b' ? 'var(--sd-purple)' : T.MUTED, fontWeight: heatView === 'b' ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>{nameB}</button>
                 </div>
               ) : null}
             >

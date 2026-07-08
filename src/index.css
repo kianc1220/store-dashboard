@@ -49,6 +49,8 @@ button { font-family: inherit; }
   --sd-text: #f1f5f9;
   --sd-text2: #cbd5e1;
   --sd-muted: #94a3b8;
+  --sd-blue: #60a5fa;
+  --sd-purple: #a78bfa;
   --sd-nav: rgba(6,10,18,0.92);
   --sd-w02: rgba(255,255,255,0.02);
   --sd-w06: rgba(255,255,255,0.06);
@@ -75,6 +77,8 @@ html[data-theme="light"] {
   --sd-text: #0f172a;
   --sd-text2: #334155;
   --sd-muted: #64748b;
+  --sd-blue: #2563eb;
+  --sd-purple: #7c3aed;
   --sd-nav: rgba(255,255,255,0.9);
   --sd-w02: rgba(15,23,42,0.02);
   --sd-w06: rgba(15,23,42,0.06);
