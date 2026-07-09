@@ -35,6 +35,8 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const BLUE = '#2563eb'
 const GREEN = '#34d399'
 const ORANGE = '#fbbf24'
+// Theme-aware amber for TEXT (the raw #fbbf24 is unreadable on white); charts keep ORANGE.
+const AMBER_TEXT = 'var(--sd-amber)'
 const RED = '#f87171'
 const PURPLE = '#7c3aed'
 const STORE_B_COLOR = '#7c3aed'
@@ -53,7 +55,7 @@ const T = {
   META_BG: 'rgba(37,99,235,0.14)',
   META_BORDER: 'rgba(37,99,235,0.40)',
   META_TEXT: 'var(--sd-blue)',
-  SECTION: '#9ca3af',
+  SECTION: 'var(--sd-section)',
 }
 
 function useWindowWidth() {
@@ -1010,7 +1012,7 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
       <div style={{ minWidth: isMobile ? 0 : 224 }}>
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(7, ${cellSize})`, gap: 0 }}>
           {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-            <div key={d} style={{ textAlign: 'center', fontSize: 10, color: '#9ca3af', padding: '0 0 8px', fontWeight: 600, letterSpacing: '0.04em' }}>{d}</div>
+            <div key={d} style={{ textAlign: 'center', fontSize: 10, color: T.SECTION, padding: '0 0 8px', fontWeight: 600, letterSpacing: '0.04em' }}>{d}</div>
           ))}
           {rows.flat().map((dateStr, i) => {
             if (!dateStr) return <div key={i} style={{ height: 34 }} />
@@ -1055,10 +1057,10 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
 
   const canApply = (selStart && selEnd) || (!selStart && !selEnd)
   const footerLabel = selStart && selEnd
-    ? <><strong style={{ color: 'var(--sd-text)' }}>{fmtDateLabel(selStart)}</strong><span style={{ color: '#9ca3af', margin: '0 8px' }}>→</span><strong style={{ color: 'var(--sd-text)' }}>{fmtDateLabel(selEnd)}</strong></>
+    ? <><strong style={{ color: 'var(--sd-text)' }}>{fmtDateLabel(selStart)}</strong><span style={{ color: T.SECTION, margin: '0 8px' }}>→</span><strong style={{ color: 'var(--sd-text)' }}>{fmtDateLabel(selEnd)}</strong></>
     : picking
-      ? <><strong style={{ color: 'var(--sd-text)' }}>{fmtDateLabel(selStart)}</strong><span style={{ color: '#9ca3af', margin: '0 8px' }}>→</span><span style={{ color: ORANGE, fontStyle: 'italic' }}>pick end date</span></>
-      : <span style={{ color: '#9ca3af' }}>Select a start date</span>
+      ? <><strong style={{ color: 'var(--sd-text)' }}>{fmtDateLabel(selStart)}</strong><span style={{ color: T.SECTION, margin: '0 8px' }}>→</span><span style={{ color: AMBER_TEXT, fontStyle: 'italic' }}>pick end date</span></>
+      : <span style={{ color: T.SECTION }}>Select a start date</span>
 
   const NavBtn = ({ onClick, children }) => (
     <button onClick={onClick} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'var(--sd-card3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: 'var(--sd-muted)', flexShrink: 0 }}>{children}</button>
@@ -1092,7 +1094,7 @@ function DateRangePicker({ value, onChange, onClose, isMobile }) {
           borderBottom: isMobile ? '1px solid rgba(255,255,255,0.08)' : 'none',
           padding: isMobile ? '10px 12px 8px' : '16px 0', flexShrink: 0,
         }}>
-          <p style={{ margin: isMobile ? '0 0 7px' : '0 0 8px 16px', fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick select</p>
+          <p style={{ margin: isMobile ? '0 0 7px' : '0 0 8px 16px', fontSize: 10, fontWeight: 700, color: T.SECTION, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick select</p>
           {/* Single-row horizontal scroll on mobile */}
           <div style={{ display: isMobile ? 'flex' : 'block', flexWrap: isMobile ? 'nowrap' : undefined, gap: isMobile ? 6 : 0, overflowX: isMobile ? 'auto' : undefined, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {presets.map(({ label, fn }) => {
@@ -2326,7 +2328,7 @@ export default function Dashboard() {
             <div className="sd-home" style={{ background: 'rgba(217,119,6,0.10)', border: '1px solid rgba(217,119,6,0.35)', borderRadius: 12, padding: '12px 16px', marginBottom: '1rem', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>💡</span>
               <div>
-                <p style={{ fontWeight: 600, fontSize: 13, color: '#fbbf24', margin: '0 0 4px' }}>Kassie Export Tip — to match Branch/Outlet Net Sales</p>
+                <p style={{ fontWeight: 600, fontSize: 13, color: AMBER_TEXT, margin: '0 0 4px' }}>Kassie Export Tip — to match Branch/Outlet Net Sales</p>
                 <p style={{ fontSize: 12, color: '#fcd34d', margin: '0 0 4px' }}>Go to <strong>Customer Report → Customer Purchase Listing</strong>, then:</p>
                 <p style={{ fontSize: 12, color: '#fcd34d', margin: 0 }}>
                   ☑ Uncheck <strong>"Display invoices with registered Customer Only"</strong> — this includes walk-in sales that are missing otherwise
@@ -2423,7 +2425,7 @@ export default function Dashboard() {
                 {data.meta.generated && <span style={{ fontSize: 12, color: T.MUTED }}>🕐 Generated: {data.meta.generated}</span>}
                 {data.meta.totalTx && <span style={{ fontSize: 12, color: T.MUTED }}>🧾 {data.meta.totalTx} transactions</span>}
                 {data.meta.kassieTotal != null && !dateRange && (
-                  <span style={{ fontSize: 12, color: Math.abs(data.totalRevenue - data.meta.kassieTotal) < 1 ? '#34d399' : '#fbbf24', fontWeight: 600 }}>
+                  <span style={{ fontSize: 12, color: Math.abs(data.totalRevenue - data.meta.kassieTotal) < 1 ? 'var(--sd-green,#34d399)' : AMBER_TEXT, fontWeight: 600 }}>
                     {Math.abs(data.totalRevenue - data.meta.kassieTotal) < 1
                       ? `✓ Kassie total matches: ${fmtMYR(data.meta.kassieTotal)}`
                       : `⚠ Kassie declares ${fmtMYR(data.meta.kassieTotal)} · StoreDash shows ${fmtMYR(data.totalRevenue)}`}
@@ -2783,7 +2785,7 @@ export default function Dashboard() {
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
                                     <span style={{ fontSize: 13, fontWeight: 700, color: T.TEXT }}>{p.name}</span>
-                                    {p.badge && <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: '#fef3c7', border: '1px solid rgba(217,119,6,0.35)', borderRadius: 5, padding: '1px 6px' }}>{p.badge}</span>}
+                                    {p.badge && <span style={{ fontSize: 10, fontWeight: 700, color: '#b45309', background: '#fef3c7', border: '1px solid rgba(217,119,6,0.35)', borderRadius: 5, padding: '1px 6px' }}>{p.badge}</span>}
                                   </div>
                                   <div style={{ fontSize: 11.5, color: T.MUTED, lineHeight: 1.5 }}>{p.insight}</div>
                                 </div>
@@ -2945,7 +2947,7 @@ export default function Dashboard() {
               <KPI icon="🛒" label="Total sales" value={fmtNum(data.totalOrders)} delta="units sold" />
               <KPI icon="🧾" label="Avg order value" value={fmtMYR(data.aov)} delta="per transaction" />
               <KPI icon="🏷️" label="Total discounts" value={fmtMYR(data.totalDiscount)}
-                delta={data.totalRevenue > 0 ? `${((data.totalDiscount / (data.totalRevenue + data.totalDiscount)) * 100).toFixed(1)}% of gross` : ''} color={ORANGE} />
+                delta={data.totalRevenue > 0 ? `${((data.totalDiscount / (data.totalRevenue + data.totalDiscount)) * 100).toFixed(1)}% of gross` : ''} color={AMBER_TEXT} />
               <KPI icon="📉" label="RSP gap" value={fmtMYR(data.rspGap)} delta="revenue below RSP" color={RED} />
               <KPI icon="⚡" label="Peak hour" value={fmtHour(data.peakHour)} delta={`${DAYS[data.peakDay]} is busiest`} />
             </div>
@@ -3764,7 +3766,7 @@ export default function Dashboard() {
 
                       const weekendTag = !isNaN(wrNum)
                         ? wrNum >= 1.2 ? { label: `${wrNum}× weekday avg`, color: GREEN }
-                          : wrNum <= 0.85 ? { label: `${wrNum}× (weekdays lead)`, color: ORANGE }
+                          : wrNum <= 0.85 ? { label: `× (weekdays lead)`, color: AMBER_TEXT }
                           : { label: `${wrNum}× (balanced)`, color: T.MUTED }
                         : null
 
@@ -3869,7 +3871,7 @@ export default function Dashboard() {
 
             <p style={{ textAlign: 'center', fontSize: 11, color: '#d1d5db', padding: '2rem 0 1rem' }}>
               StoreDash · built with React + Recharts ·{' '}
-              <a href="https://github.com/kianc1220" target="_blank" rel="noreferrer" style={{ color: '#9ca3af', textDecoration: 'none' }}>© kianc1220</a>
+              <a href="https://github.com/kianc1220" target="_blank" rel="noreferrer" style={{ color: T.SECTION, textDecoration: 'none' }}>© kianc1220</a>
             </p>
           </div>
         )}
